@@ -4,7 +4,7 @@ import axios from "axios";
 // This interceptor no longer manages tokens directly
 
 const axiosInterceptorInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "https://site--mzbs--lvqlqxbx7xgh.code.run/",
   headers: {
     "Content-Type": "application/json",
   },
