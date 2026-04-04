@@ -55,6 +55,10 @@ const EditAttendance = ({ attendanceId, onUpdate }: EditAttendanceProps) => {
         updated_at: new Date(),
       };
 
+      if (!updateData.attendance_id) {
+        throw new Error("attendance_id is required for update");
+      }
+
       const response = (await API.Update(
         updateData.attendance_id,
         updateData

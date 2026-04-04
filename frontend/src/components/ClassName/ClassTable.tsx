@@ -28,38 +28,6 @@ import { useEffect, useState } from "react";
 import DelConfirmMsg from "../DelConfMsg";
 import { toast } from "sonner";
 
-const columns: ColumnDef<ClassNameModel>[] = [
-  {
-    accessorKey: "class_name_id",
-    header: "Sr. No",
-    cell: ({ row }) => (
-      <div className="font-semibold text-gray-700 dark:text-gray-200">
-        {row.getValue("class_name_id")}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "class_name",
-    header: "Class Name",
-    cell: ({ row }) => (
-      <div className="text-gray-600 dark:text-gray-200 font-medium">
-        {row.getValue("class_name")}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "created_at",
-    header: "Created Date",
-    cell: ({ row }) => {
-      const date = new Date(row.getValue("created_at"));
-      const formattedDate = format(date, "dd/MM/yyyy");
-      return (
-        <div className="text-gray-500 dark:text-gray-200">{formattedDate}</div>
-      );
-    },
-  },
-];
-
 export default function ModernStudentTable() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [data, setData] = useState<ClassNameModel[]>([]);
@@ -102,7 +70,7 @@ export default function ModernStudentTable() {
     }
   };
 
-  const columnsWithDelete: ColumnDef<ClassNameModel>[] = [
+  const columns: ColumnDef<ClassNameModel>[] = [
     {
       accessorKey: "class_name_id",
       header: "Sr. No",
@@ -150,7 +118,7 @@ export default function ModernStudentTable() {
 
   const table = useReactTable({
     data,
-    columns: columnsWithDelete,
+    columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -199,7 +167,7 @@ export default function ModernStudentTable() {
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={columnsWithDelete.length}
+                  colSpan={columns.length}
                   className="text-center py-6"
                 >
                   <LoaderIcon className="animate-spin w-6 h-6 mx-auto" />

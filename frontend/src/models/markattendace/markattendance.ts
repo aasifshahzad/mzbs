@@ -21,7 +21,7 @@ export interface MarkAttInput {
   }[];
 }
 
-export interface MarkAttUpdate extends EntityBase {
+export interface MarkAttUpdate {
   attendance_id?: number;
   attendance_date?: string;
   attendance_time_id?: number;
@@ -29,4 +29,6 @@ export interface MarkAttUpdate extends EntityBase {
   teacher_name_id?: number;
   student_id?: number;
   attendance_value_id?: number;
+  created_at?: Date;
+  updated_at?: Date;
 }

@@ -10,20 +10,27 @@ export interface EntityBase {
 //   rowVersion: string;
 }
 
-export function GetActionDetail(Data: EntityBase, DataType: string) {
+export function GetActionDetail<T>(data: T, DataType: string): T {
   try {
     switch (DataType) {
       case "create":
-        Data.created_at = new Date();
-        Data.updated_at = new Date();
-        break;
-      case "update":
-        Data.updated_at = new Date();
-        break;
-    }
+        return {
+          ...data,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
 
-    return Data;
+      case "update":
+        return {
+          ...data,
+          updated_at: new Date(),
+        };
+
+      default:
+        return data;
+    }
   } catch (error) {
     console.log(error);
+    return data;
   }
 }

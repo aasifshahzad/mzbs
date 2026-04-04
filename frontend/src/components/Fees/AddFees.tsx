@@ -66,7 +66,7 @@ const AddFees = () => {
     GetClassName();
     GetStudents();
     // Set year to current year as default
-    setFormValue("fee_year", new Date().getFullYear().toString());
+    setFormValue("fee_year", new Date().getFullYear());
   }, [setFormValue]);
 
   // Watch for class changes and filter students accordingly

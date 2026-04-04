@@ -19,10 +19,13 @@ export namespace TeacherNameAPI {
 
   export const Create = async (ClassName: TeacherModel) => {
     try {
-        ClassName = GetActionDetail(ClassName, "create");
+      const payload: TeacherModel = {
+        ...ClassName,
+        ...GetActionDetail(ClassName, "create"),
+      };
       const response = await AxiosInstance.post<TeacherModel>(
         "/teacher_name/add_teacher_name/",
-        JSON.stringify(ClassName),
+        JSON.stringify(payload),
         {
           headers: {
             "Content-Type": "application/json",

@@ -20,10 +20,13 @@ export namespace AttendanceTimeAPI {
 
   export const Create = async (ClassName: CreateTiming) => {
     try {
-        ClassName = GetActionDetail(ClassName, "create");
+      const payload: CreateTiming = {
+        ...ClassName,
+        ...GetActionDetail(ClassName, "create"),
+      };
       const response = await AxiosInstance.post<CreateTiming>(
         "/attendance_time/add_attendance_value/",
-        JSON.stringify(ClassName),
+        JSON.stringify(payload),
         {
           headers: {
             "Content-Type": "application/json",

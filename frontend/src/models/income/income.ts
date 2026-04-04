@@ -24,8 +24,10 @@ export interface IncomeCategory {
   created_at: string; // ISO date string format
 }
 
-export interface CreateIncomeCat extends EntityBase {
+export interface CreateIncomeCat {
   income_cat_name: string;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
 // export interface GetFeeModel {

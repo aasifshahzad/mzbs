@@ -29,45 +29,6 @@ import { IncomeCategory} from "@/models/income/income";
 import DelConfirmMsg from "../DelConfMsg";
 import { toast } from "sonner";
 
-// Define columns
-const columns: ColumnDef<IncomeCategory>[] = [
-  {
-    accessorKey: "income_cat_name_id", // Updated to match interface
-    header: "Sr. No",
-    /**
-     * A cell component that renders the income category id as a string in a font-medium div
-     * @param {{row: Row<IncomeCategory>}} props The props object with a row property containing the row data
-     * @returns {ReactElement} The rendered cell component
-     */
-    cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("income_cat_name_id")}</div>
-    ),
-  },
-  {
-    accessorKey: "income_cat_name", // Updated to match interface
-    header: "Income Category",
-  },
-  {
-    accessorKey: "created_at",
-    header: "Created Date",
-    cell: ({ row }) => {
-      const date = new Date(row.getValue("created_at"));
-      const formattedDate = date.toLocaleDateString("en-GB");
-      return <div>{formattedDate}</div>;
-    }
-  },
-  {
-    accessorKey: "Delete",
-    header: "Delete",
-    cell: ({ row }) => (
-      <DelConfirmMsg
-        rowId={row.getValue("income_cat_name_id")}
-        OnDelete={(confirmed) => formDeleteHandler(confirmed, row.original)}
-      />
-    ),
-  },
-];
-
 export default function IncomeCat() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [data, setData] = useState<IncomeCategory[]>([]);
@@ -117,7 +78,7 @@ export default function IncomeCat() {
     }
   };
 
-  const columnsWithDelete: ColumnDef<IncomeCategory>[] = [
+  const columns: ColumnDef<IncomeCategory>[] = [
     {
       accessorKey: "income_cat_name_id", // Updated to match interface
       header: "Sr. No",
@@ -157,7 +118,7 @@ export default function IncomeCat() {
   
   const table = useReactTable({
     data,
-    columns: columnsWithDelete,
+    columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -208,7 +169,7 @@ export default function IncomeCat() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={columnsWithDelete.length} className="text-center">
+                <TableCell colSpan={columns.length} className="text-center">
                   <div className="flex justify-center">
                     <LoaderIcon className="animate-spin w-10 h-10" />
                   </div>

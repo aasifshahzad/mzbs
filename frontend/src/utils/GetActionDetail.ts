@@ -1,16 +1,22 @@
 import { EntityBase } from "../models/EntityBase";
 
-export function GetActionDetail<T extends EntityBase>(Data: T, DataType: "create" | "update"): T {
+export function GetActionDetail<T extends Partial<EntityBase>>(data: T, DataType: "create" | "update"): T {
     try {
         switch (DataType) {
             case "create":
-                Data.created_at = new Date();
-                break;
+                return {
+                    ...data,
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                } as T;
             case "update":
-                Data.updated_at = new Date();
-                break;
+                return {
+                    ...data,
+                    updated_at: new Date(),
+                } as T;
+            default:
+                return data;
         }
-        return Data;
     } catch (error) {
         console.error("Error in GetActionDetail:", error);
         throw new Error("Failed to process action details");

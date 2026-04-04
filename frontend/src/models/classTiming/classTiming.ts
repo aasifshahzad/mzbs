@@ -5,7 +5,9 @@ export interface ClassTiming extends EntityBase {
     attendance_time: string;
 }
 
-export interface CreateTiming extends EntityBase {
+export interface CreateTiming {
     attendance_time: string;
+    created_at?: Date;
+    updated_at?: Date;
 }
 
