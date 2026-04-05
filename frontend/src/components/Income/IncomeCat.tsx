@@ -80,15 +80,15 @@ export default function IncomeCat() {
 
   const columns: ColumnDef<IncomeCategory>[] = [
     {
-      accessorKey: "income_cat_name_id", // Updated to match interface
+      id: "sr_no",
       header: "Sr. No",
       /**
-       * A cell component that renders the income category id as a string in a font-medium div
+       * A cell component that renders the row position as a sequential number
        * @param {{row: Row<IncomeCategory>}} props The props object with a row property containing the row data
        * @returns {ReactElement} The rendered cell component
        */
       cell: ({ row }) => (
-        <div className="font-medium">{row.getValue("income_cat_name_id")}</div>
+        <div className="font-medium">{row.index + 1}</div>
       ),
     },
     {

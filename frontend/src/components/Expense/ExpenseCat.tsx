@@ -81,10 +81,10 @@ export default function ExpenseCat() {
   // Define columns
   const columns: ColumnDef<ExpenseCategory>[] = [
     {
-      accessorKey: "expense_cat_name_id", // Updated to match interface
+      id: "sr_no",
       header: "Sr. No",
       cell: ({ row }) => (
-        <div className="font-medium">{row.getValue("expense_cat_name_id")}</div>
+        <div className="font-medium">{row.index + 1}</div>
       ),
     },
     {

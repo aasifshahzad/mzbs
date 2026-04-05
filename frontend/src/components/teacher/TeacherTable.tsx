@@ -74,10 +74,10 @@ export default function TeacherTable() {
 
   const columns: ColumnDef<TeacherModel>[] = [
     {
-      accessorKey: "teacher_name_id",
+      id: "sr_no",
       header: "Sr. No",
       cell: ({ row }) => (
-        <div className="font-medium">{row.getValue("teacher_name_id")}</div>
+        <div className="font-medium">{row.index + 1}</div>
       ),
     },
     {

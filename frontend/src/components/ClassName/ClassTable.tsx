@@ -72,11 +72,11 @@ export default function ModernStudentTable() {
 
   const columns: ColumnDef<ClassNameModel>[] = [
     {
-      accessorKey: "class_name_id",
+      id: "sr_no",
       header: "Sr. No",
       cell: ({ row }) => (
         <div className="font-semibold text-gray-700 dark:text-gray-200">
-          {row.getValue("class_name_id")}
+          {row.index + 1}
         </div>
       ),
     },

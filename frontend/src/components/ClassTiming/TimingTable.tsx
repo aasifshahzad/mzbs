@@ -80,10 +80,10 @@ export default function ClassTiming() {
   // Define columns
   const columns: ColumnDef<ClassTiming>[] = [
     {
-      accessorKey: "attendance_time_id",
+      id: "sr_no",
       header: "Sr. No",
       cell: ({ row }) => (
-        <div className="font-medium">{row.getValue("attendance_time_id")}</div>
+        <div className="font-medium">{row.index + 1}</div>
       ),
     },
     {
