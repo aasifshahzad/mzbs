@@ -39,7 +39,6 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "students",
     "teachers",
     "classes",
-    "fees",
   ],
   TEACHER: ["attendance", "students", "dashboard"],
   ACCOUNTANT: ["expenses", "fees", "income", "dashboard"],
@@ -136,6 +135,15 @@ export function canAccessSubmenuItem(role: string | null, submenuPath: string): 
   // Deleted Students: only ADMIN and PRINCIPAL can access
   if (submenuPath.includes("/students/deleted")) {
     return role === "ADMIN" || role === "PRINCIPAL";
+  }
+
+  // TEACHER: can only access Mark Attendance and View Attendance submenu items
+  if (role === "TEACHER") {
+    return (
+      submenuPath.includes("/attendance/mark_attendance") ||
+      submenuPath.includes("/attendance/view_attendance") ||
+      submenuPath.includes("/students") && !submenuPath.includes("/deleted")
+    );
   }
 
   // All other cases follow the section-based access control

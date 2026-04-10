@@ -1,4 +1,4 @@
-import React, { forwardRef, useId, useState } from "react";
+import React, { forwardRef, useId } from "react";
 
 export interface SelectOption {
   id: string | number;
@@ -28,9 +28,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   ref
 ) {
   const id = useId();
-  const [isOpen, setIsOpen] = useState(false);
-
-  const toggleDropdown = () => setIsOpen(!isOpen);
 
   return (
     <div className="w-full flex flex-col gap-1">
@@ -46,10 +43,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           id={id}
           ref={ref}
           className={`w-full px-3 py-2 dark:bg-neutral-950 dark:border-gray-300 border border-black bg-${background} rounded-md outline-none`}
-          onClick={toggleDropdown}
-          defaultValue="" // Add this line to make "Select..." the default option
         >
-          <option disabled value="">Select...</option>
+          <option value="">Select...</option>
           {options.map((option, index) => (
             <option key={index} value={option.id}>
               {option[DisplayCode]

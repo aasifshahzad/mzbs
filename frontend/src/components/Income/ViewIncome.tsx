@@ -5,7 +5,12 @@ import React, { useEffect, useState } from "react";
 import { IncomeAPI as API } from "@/api/Income/IncomeAPI";
 import { useForm } from "react-hook-form";
 import { usePrint } from "@/components/print/usePrint";
-import { Printer } from "lucide-react";
+import { useRole } from "@/context/RoleContext";
+import { formatDateToDDMMYY } from "@/utils/dateFormatter";
+import { Printer, Edit2, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 import {
   Table,
@@ -15,6 +20,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Header } from "../dashboard/Header";
 import Loader from "../Loader";
 
@@ -44,15 +56,29 @@ const ViewIncome = () => {
     formState: { errors },
   } = useForm<IncomeFormValues>();
   const { printRecords } = usePrint();
+  const { role } = useRole();
 
   const [isLoading, setIsLoading] = useState(false);
   const [incomeCategory, setIncomeCategory] = useState<IncomeCategory[]>([]);
   const [incomeData, setIncomeData] = useState<IncomeDataItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  
+  // Edit modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingIncome, setEditingIncome] = useState<IncomeDataItem | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    recipt_number: "",
+    date: "",
+    category_id: "",
+    source: "",
+    description: "",
+    contact: "",
+    amount: "",
+  });
 
-  // Load categories + all incomes on first mount
+  // Load categories on first mount (don't load all incomes by default)
   useEffect(() => {
     getCategories();
-    getAllIncome();
   }, []);
 
   const getCategories = async () => {
@@ -105,6 +131,70 @@ const ViewIncome = () => {
     }
   };
 
+  const handleDeleteIncome = async (incomeId: number) => {
+    if (!confirm("Are you sure you want to delete this income record?")) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await API.DeleteIncome(incomeId);
+      // Refresh the data
+      getIncome(0);
+    } catch (error) {
+      console.error("Error deleting income:", error);
+      alert("Failed to delete income record");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditClick = (income: IncomeDataItem) => {
+    setEditingIncome(income);
+    setEditFormData({
+      recipt_number: String(income.id),
+      date: income.date.split("T")[0], // Format: YYYY-MM-DD
+      category_id: "", // Will need to track category_id separately
+      source: income.source,
+      description: income.description || "",
+      contact: income.contact || "",
+      amount: String(income.amount),
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateIncome = async () => {
+    if (!editingIncome) return;
+
+    setIsLoading(true);
+    try {
+      const updateData = {
+        date: editFormData.date,
+        source: editFormData.source,
+        description: editFormData.description || null,
+        contact: editFormData.contact || null,
+        amount: parseFloat(editFormData.amount),
+      };
+
+      await API.UpdateIncome(editingIncome.id, updateData);
+      toast.success("Income record updated successfully");
+      setIsEditModalOpen(false);
+      setEditingIncome(null);
+      
+      // Refresh the data based on current selection
+      if (selectedCategory && selectedCategory !== "") {
+        getIncome(Number(selectedCategory));
+      } else {
+        setIncomeData([]);
+      }
+    } catch (error) {
+      console.error("Error updating income:", error);
+      toast.error("Failed to update income record");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="container mx-auto">
       <Header value="View Income" />
@@ -116,8 +206,18 @@ const ViewIncome = () => {
           <select
             {...register("category_id", { valueAsNumber: true })}
             className="w-[14rem] border bg-white rounded-md px-3 py-2 focus:ring focus:ring-indigo-300 dark:bg-background dark:text-gray-300"
-            onChange={(e) => getIncome(Number(e.target.value))}
+            value={selectedCategory}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSelectedCategory(value);
+              if (value === "") {
+                setIncomeData([]);
+              } else {
+                getIncome(Number(value));
+              }
+            }}
           >
+            <option value="" disabled>-- Select Category --</option>
             <option value={0}>All</option>
             {incomeCategory.map((category) => (
               <option
@@ -162,18 +262,41 @@ const ViewIncome = () => {
                     <TableHead className="text-gray-100">Description</TableHead>
                     <TableHead className="text-gray-100">Contact</TableHead>
                     <TableHead className="text-gray-100">Amount</TableHead>
+                    {(role === "ADMIN" || role === "ACCOUNTANT") && (
+                      <TableHead className="text-gray-100 no-print">Actions</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {incomeData.map((item) => (
                     <TableRow className="h-[1rem]" key={item.id}>
                       <TableCell>{item.id}</TableCell>
-                      <TableCell>{item.date}</TableCell>
+                      <TableCell>{formatDateToDDMMYY(item.date)}</TableCell>
                       <TableCell>{item.category}</TableCell>
                       <TableCell>{item.source}</TableCell>
                       <TableCell>{item.description}</TableCell>
                       <TableCell>{item.contact}</TableCell>
                       <TableCell>{item.amount}</TableCell>
+                      {(role === "ADMIN" || role === "ACCOUNTANT") && (
+                        <TableCell className="no-print flex gap-2 items-center">
+                          <button
+                            onClick={() => handleEditClick(item)}
+                            className="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          {role === "ADMIN" && (
+                            <button
+                              onClick={() => handleDeleteIncome(item.id)}
+                              className="p-1 text-red-600 hover:bg-red-100 rounded transition"
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -184,6 +307,92 @@ const ViewIncome = () => {
           <p>No income records available.</p>
         )}
       </div>
+
+      {/* Edit Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Income Record</DialogTitle>
+          </DialogHeader>
+          {editingIncome && (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Date</label>
+                <Input
+                  type="date"
+                  value={editFormData.date}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, date: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Source</label>
+                <Input
+                  value={editFormData.source}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, source: e.target.value })
+                  }
+                  placeholder="Enter source"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Description</label>
+                <Input
+                  value={editFormData.description}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      description: e.target.value,
+                    })
+                  }
+                  placeholder="Enter description"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Contact</label>
+                <Input
+                  value={editFormData.contact}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, contact: e.target.value })
+                  }
+                  placeholder="Enter contact"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Amount</label>
+                <Input
+                  type="number"
+                  value={editFormData.amount}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, amount: e.target.value })
+                  }
+                  placeholder="Enter amount"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <button
+              onClick={() => setIsEditModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+            >
+              Cancel
+            </button>
+            <Button
+              onClick={handleUpdateIncome}
+              disabled={isLoading}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isLoading ? "Updating..." : "Update"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

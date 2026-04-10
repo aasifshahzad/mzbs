@@ -6,7 +6,7 @@ import { Header } from "@/components/dashboard/Header";
 import { DashboardAPI } from "@/api/Dashboard/dashboardAPI";
 import { CardsSkeleton, Skeleton } from "@/components/dashboard/Skeleton";
 import { motion } from "framer-motion";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line } from "recharts";
 
 // API Response Type Definitions
 interface ApiResponse<T> {
@@ -87,6 +87,25 @@ interface ExpenseSummaryData {
   total: number;
 }
 
+interface FeeSummaryData {
+  year: number;
+  monthly_data: {
+    [key: string]: number;
+  };
+  total: number;
+  graph: {
+    labels: string[];
+    datasets: {
+      label: string;
+      data: number[];
+      backgroundColor: string;
+      borderColor: string;
+      borderWidth: number;
+    }[];
+    title: string;
+  };
+}
+
 // Custom tooltip
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -117,6 +136,8 @@ export function AccountantDashboard() {
   const [expenseSummaryData, setExpenseSummaryData] =
     useState<ExpenseSummaryData | null>(null);
   const [expenseSummaryLoading, setExpenseSummaryLoading] = useState(true);
+  const [feeSummaryData, setFeeSummaryData] = useState<FeeSummaryData | null>(null);
+  const [feeSummaryLoading, setFeeSummaryLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedExpenseMonth, setSelectedExpenseMonth] = useState<number | null>(null);
   
@@ -203,6 +224,26 @@ export function AccountantDashboard() {
 
     fetchExpenseSummary();
   }, [selectedYear, selectedExpenseMonth, role]);
+
+  // Fetch Fee Summary
+  useEffect(() => {
+    if (!role) return;
+    const fetchFeeSummary = async () => {
+      setFeeSummaryLoading(true);
+      try {
+        const response = (await DashboardAPI.GetFeeSummary(selectedYear)) as ApiResponse<FeeSummaryData>;
+        if (response && response.data) {
+          setFeeSummaryData(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching fee summary:", error);
+      } finally {
+        setFeeSummaryLoading(false);
+      }
+    };
+
+    fetchFeeSummary();
+  }, [selectedYear, role]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -648,6 +689,102 @@ export function AccountantDashboard() {
                         expenseSummaryData?.graph.datasets[0].label || "Expense"
                       }
                       fill="url(#colorExpenseAmount)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Fee Collection Summary Card */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.7 }}
+            className="bg-white p-6 rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow duration-300"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800">
+                Fee Collection Summary for {selectedYear}
+              </h2>
+              <div className="flex items-center bg-gray-100 p-2 rounded-lg">
+                <label
+                  htmlFor="fee-year-select"
+                  className="mr-2 text-sm font-medium text-gray-600"
+                >
+                  Select Year:
+                </label>
+                <select
+                  id="fee-year-select"
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                  {Array.from({ length: 7 }, (_, i) => currentYear - 4 + i).map(
+                    (year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {/* Fee summary total */}
+            {!feeSummaryLoading && feeSummaryData && (
+              <div className="mb-6 bg-gradient-to-r from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-purple-500 text-white mr-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Fee Collection {selectedYear}</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      Rs.{feeSummaryData.total.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="h-80">
+              {feeSummaryLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <CardsSkeleton />
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={
+                      feeSummaryData?.graph.labels.map(
+                        (month, index) => ({
+                          name: month,
+                          fees: feeSummaryData.graph.datasets[0].data[index],
+                        })
+                      ) || []
+                    }
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    barSize={35}
+                  >
+                    <defs>
+                      <linearGradient id="colorFees" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="rgba(168, 85, 247, 0.8)" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="rgba(168, 85, 247, 0.8)" stopOpacity={0.4}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                    <YAxis axisLine={false} tickLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend iconType="circle" />
+                    <Bar
+                      dataKey="fees"
+                      name={feeSummaryData?.graph.datasets[0].label || "Fees Collected"}
+                      fill="url(#colorFees)"
                       radius={[4, 4, 0, 0]}
                     />
                   </BarChart>

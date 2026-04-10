@@ -3,7 +3,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Body
 from sqlmodel import Session, select
 from router.class_names import get_class_name
-from schemas.students_model import Students
+
 from schemas.class_names_model import ClassNames
 from router.students import get_student_by_id, get_student_details, get_student_details_utility
 from sqlalchemy import func

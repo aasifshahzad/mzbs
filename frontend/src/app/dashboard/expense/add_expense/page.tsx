@@ -46,7 +46,12 @@ const AddExpense = () => {
   const AddExpenseFunction = async (data: AddExpenseModel) => {
     setIsLoading(true);
     try {
-      const response = await API.AddExpense(data);
+      // Convert empty strings to null for optional fields
+      const cleanedData = {
+        ...data,
+        description: data.description === '' ? null : data.description,
+      };
+      const response = await API.AddExpense(cleanedData);
       if (response.status === 200 || response.status === 201) {
         toast.success("expense record added successfully");
         reset();
@@ -146,9 +151,7 @@ const AddExpense = () => {
                 Description
               </label>
               <Input
-                {...register("description", {
-                  required: "Description is required",
-                })}
+                {...register("description")}
                 placeholder="Enter description"
                 className="h-8 sm:h-10 text-sm"
               />

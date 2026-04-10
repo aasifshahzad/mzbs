@@ -5,8 +5,8 @@ export interface AddIncomeModel {
   date: string; // ISO date string format
   category_id: number;
   source: string;
-  description: string;
-  contact: string;
+  description?: string;
+  contact?: string;
   amount: number;
 }
 export interface ViewIncomeModel {

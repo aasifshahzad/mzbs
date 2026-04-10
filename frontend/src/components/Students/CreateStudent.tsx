@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "../ui/input";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { LoaderIcon } from "lucide-react";
 import { StudentAPI as API } from "@/api/Student/StudentsAPI";
@@ -23,7 +23,10 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
+    watch,
+    setValue,
   } = useForm<CreateStudent>();
 
   const [open, setOpen] = useState(false);
@@ -31,11 +34,57 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
   const [classNameList, setClassNameList] = useState<SelectComponentOption[]>(
     []
   );
+  const [calculatedAge, setCalculatedAge] = useState<string>("");
 
   interface ClassNameResponse {
     class_name_id: number;
     class_name: string;
   }
+
+  // Watch the date of birth field and calculate age
+  const dateOfBirth = watch("student_date_of_birth");
+  useEffect(() => {
+    if (dateOfBirth) {
+      const age = calculateAge(dateOfBirth);
+      setCalculatedAge(age.toString());
+      // Set the age field value
+      setValue("student_age", age.toString());
+    }
+  }, [dateOfBirth, setValue]);
+
+  // Function to calculate age from date of birth in detailed format
+  const calculateAge = (dob: string): string => {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    
+    if (isNaN(birthDate.getTime())) {
+      return "Invalid date";
+    }
+
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let months = today.getMonth() - birthDate.getMonth();
+    let days = today.getDate() - birthDate.getDate();
+
+    // Adjust for negative days
+    if (days < 0) {
+      months--;
+      const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      days += prevMonth.getDate();
+    }
+
+    // Adjust for negative months
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    // Handle edge case where years is negative
+    if (years < 0) {
+      return "0 years 0 months 0 days";
+    }
+
+    return `${years} year${years !== 1 ? 's' : ''} ${months} month${months !== 1 ? 's' : ''} ${days} day${days !== 1 ? 's' : ''}`;
+  };
 
   const handleFormSubmit = async (data: CreateStudent) => {
     console.log(data);
@@ -48,6 +97,7 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
       if (response) {
         setOpen(false);
         reset();
+        setCalculatedAge("");
         toast("Student Added Successfully!");
         onClassAdded(); // Call the function to refresh the table
       }
@@ -65,7 +115,7 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
       if (response.data) {
         setClassNameList(
           response.data.map((item) => ({
-            id: item.class_name_id,
+            id: item.class_name,
             title: item.class_name,
           }))
         );
@@ -127,18 +177,18 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
                   <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-400 block mb-1.5">
                     Class Name
                   </label>
-                  <Select
-                    options={classNameList}
-                    {...register("class_name", {
-                      required: "Field is required",
-                    })}
-                    onChange={(event: React.ChangeEvent<HTMLSelectElement>) => {
-                      register("class_name").onChange({
-                        target: { value: event.target.value },
-                      });
-                    }}
-                    DisplayItem="title"
-                    className="w-full h-10 sm:h-11"
+                  <Controller
+                    name="class_name"
+                    control={control}
+                    rules={{ required: "Field is required" }}
+                    render={({ field }) => (
+                      <Select
+                        options={classNameList}
+                        {...field}
+                        DisplayItem="title"
+                        className="w-full h-10 sm:h-11"
+                      />
+                    )}
                   />
                   <p className="text-red-500 text-xs mt-1">
                     {errors.class_name?.message}
@@ -180,23 +230,8 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
                   </div>
                 </div>
 
-                {/* Age and Date of Birth Fields */}
+                {/* Date of Birth and Age Fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="w-full">
-                    <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-400 block mb-1.5">
-                      Age (Optional)
-                    </label>
-                    <Input
-                      type="number"
-                      className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-10 sm:h-11"
-                      placeholder="Age"
-                      {...register("student_age")}
-                    />
-                    <p className="text-red-500 text-xs mt-1">
-                      {errors.student_age?.message}
-                    </p>
-                  </div>
-
                   <div className="w-full">
                     <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-400 block mb-1.5">
                       Date of Birth
@@ -210,6 +245,23 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
                     />
                     <p className="text-red-500 text-xs mt-1">
                       {errors.student_date_of_birth?.message}
+                    </p>
+                  </div>
+
+                  <div className="w-full">
+                    <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-400 block mb-1.5">
+                      Age (Auto-calculated)
+                    </label>
+                    <Input
+                      type="text"
+                      className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-10 sm:h-11 bg-gray-100 dark:bg-gray-800 cursor-not-allowed"
+                      placeholder="Age"
+                      readOnly
+                      value={calculatedAge || ""}
+                      {...register("student_age")}
+                    />
+                    <p className="text-gray-500 text-xs mt-1">
+                      {calculatedAge && calculatedAge !== "Invalid date" ? calculatedAge : "Select DOB to calculate"}
                     </p>
                   </div>
                 </div>

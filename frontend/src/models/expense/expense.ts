@@ -3,7 +3,7 @@ export interface AddExpenseModel {
   date: string; // ISO date string format
   category_id: number;
   to_whom: string;
-  description: string;
+  description?: string;
   amount: number;
 }
 

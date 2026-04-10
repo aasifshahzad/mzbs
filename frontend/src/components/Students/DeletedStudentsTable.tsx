@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { StudentAPI } from '@/api/Student/StudentsAPI';
+import { Trash2 } from 'lucide-react';
+import { useRole } from '@/context/RoleContext';
 
 interface DeletedStudent {
   student_id: number;
@@ -22,7 +24,10 @@ export default function DeletedStudentsTable({
   students,
   onRestoreSuccess,
 }: DeletedStudentsTableProps) {
+  const { role } = useRole();
+  const isAdmin = role === 'ADMIN';
   const [restoringId, setRestoringId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   const handleRestore = async (deletedRecordId: number, name: string) => {
@@ -38,6 +43,24 @@ export default function DeletedStudentsTable({
       setError(err?.response?.data?.detail || 'Failed to restore student.');
     } finally {
       setRestoringId(null);
+    }
+  };
+
+  const handlePermanentlyDelete = async (deletedRecordId: number, name: string) => {
+    const confirmed = window.confirm(
+      `⚠️ Permanently delete "${name}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(deletedRecordId);
+    setError('');
+    try {
+      await StudentAPI.PermanentlyDeleteStudent(deletedRecordId);
+      onRestoreSuccess(); // Refresh the list
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to permanently delete student.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -81,13 +104,29 @@ export default function DeletedStudentsTable({
                   {new Date(student.deleted_at).toLocaleDateString()}
                 </td>
                 <td className="py-4 px-4 text-sm">
-                  <button
-                    onClick={() => handleRestore(student.student_id, student.student_name)}
-                    disabled={restoringId === student.student_id}
-                    className="text-green-600 text-sm hover:underline disabled:opacity-50"
-                  >
-                    {restoringId === student.student_id ? 'Restoring...' : 'Restore'}
-                  </button>
+                  <div className="flex gap-2 items-center">
+                    <button
+                      onClick={() => handleRestore(student.student_id, student.student_name)}
+                      disabled={restoringId === student.student_id || deletingId === student.student_id}
+                      className="text-green-600 text-sm hover:underline disabled:opacity-50"
+                    >
+                      {restoringId === student.student_id ? 'Restoring...' : 'Restore'}
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handlePermanentlyDelete(student.student_id, student.student_name)}
+                        disabled={deletingId === student.student_id || restoringId === student.student_id}
+                        title="Permanently delete this student record"
+                        className="text-red-600 hover:text-red-800 disabled:opacity-50 transition-colors"
+                      >
+                        {deletingId === student.student_id ? (
+                          <span className="text-xs">Deleting...</span>
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

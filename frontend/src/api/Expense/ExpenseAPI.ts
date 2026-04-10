@@ -78,6 +78,37 @@ export const ExpenseAPI = {
       console.error("API Error:", error);
       throw error;
     }
+  },
+
+  UpdateExpense: async (expenseId: number, expenseData: any) => {
+    try {
+      const response = await AxiosInstance.put(
+        `/expenses/update/${expenseId}`,
+        JSON.stringify(expenseData),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      console.log("API Response:", response);
+      return response;
+    } catch (error) {
+      console.error("API Error:", error);
+      throw error;
+    }
+  },
+
+  DeleteExpense: async (expenseId: number) => {
+    try {
+      const response = await AxiosInstance.delete(
+        `/expenses/del/${expenseId}`
+      );
+      return response;
+    } catch (error) {
+      console.error("API Error:", error);
+      throw error;
+    }
   }
 };
 

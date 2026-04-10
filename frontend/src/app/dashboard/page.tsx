@@ -4,6 +4,7 @@ import { useRole } from "@/context/RoleContext";
 import { TeacherDashboard } from "@/components/dashboard/TeacherDashboard";
 import { AccountantDashboard } from "@/components/dashboard/AccountantDashboard";
 import { StudentDashboard } from "@/components/dashboard/StudentDashboard";
+import { PrincipalDashboard } from "@/components/dashboard/PrincipalDashboard";
 import {
   PieChart,
   Pie,
@@ -227,8 +228,9 @@ export default function DashboardRouter() {
   // Route to appropriate dashboard based on role
   switch (role) {
     case "ADMIN":
-    case "PRINCIPAL":
       return <AdminDashboardView />;
+    case "PRINCIPAL":
+      return <PrincipalDashboard />;
     case "TEACHER":
       return <TeacherDashboard />;
     case "ACCOUNTANT":

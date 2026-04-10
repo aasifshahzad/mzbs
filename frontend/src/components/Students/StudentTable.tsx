@@ -9,7 +9,7 @@ import {
   getPaginationRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table";
-import { Search, LoaderIcon, Eye, Trash2, Printer } from "lucide-react";
+import { Search, LoaderIcon, Eye, Trash2, Printer, Edit2 } from "lucide-react";
 import { StudentAPI as API } from "@/api/Student/StudentsAPI";
 import { usePrint } from "@/components/print/usePrint";
 export { format } from "date-fns";
@@ -25,6 +25,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StudentModel } from "@/models/students/Student";
+import { Select, SelectOption as SelectComponentOption } from "@/components/Select";
+import { ClassNameAPI } from "@/api/Classname/ClassNameAPI";
 import { useEffect, useState } from "react";
 import AddNewStudent from "./CreateStudent";
 import DeleteStudentModal from "./DeleteStudentModal";
@@ -50,6 +52,7 @@ export default function ModernStudentTable() {
   const [modalStudent, setModalStudent] = useState<{ id: number; name: string } | null>(null);
   const { role } = useRole();
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [classNameList, setClassNameList] = useState<SelectComponentOption[]>([]);
 
   // Get current user ID from localStorage
   useEffect(() => {
@@ -57,7 +60,102 @@ export default function ModernStudentTable() {
     setCurrentUserId(user?.id || null);
   }, []);
 
-  // Define formDeleteHandler first
+  // Fetch class names for the dropdown
+  useEffect(() => {
+    const fetchClassNames = async () => {
+      try {
+        const response = (await ClassNameAPI.Get()) as { data: Array<{ class_name_id: number; class_name: string }> };
+        if (response.data) {
+          setClassNameList(
+            response.data.map((item) => ({
+              id: item.class_name,
+              title: item.class_name,
+            }))
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching class names:", error);
+      }
+    };
+    fetchClassNames();
+  }, []);
+
+  // --- Edit state ---
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<StudentModel | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<StudentModel>>({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [editCalculatedAge, setEditCalculatedAge] = useState<string>("");
+
+  const handleEditClick = (student: StudentModel) => {
+    setEditingStudent(student);
+    setEditFormData({ ...student });
+    // Calculate and set initial age
+    if (student.student_date_of_birth) {
+      setEditCalculatedAge(calculateAge(student.student_date_of_birth));
+    }
+    setIsEditModalOpen(true);
+  };
+
+  // Function to calculate age from date of birth in detailed format
+  const calculateAge = (dob: string): string => {
+    if (!dob) return "";
+    const birthDate = new Date(dob);
+    const today = new Date();
+    
+    if (isNaN(birthDate.getTime())) {
+      return "Invalid date";
+    }
+
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let months = today.getMonth() - birthDate.getMonth();
+    let days = today.getDate() - birthDate.getDate();
+
+    // Adjust for negative days
+    if (days < 0) {
+      months--;
+      const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      days += prevMonth.getDate();
+    }
+
+    // Adjust for negative months
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    // Handle edge case where years is negative
+    if (years < 0) {
+      return "0 years 0 months 0 days";
+    }
+
+    return `${years} year${years !== 1 ? 's' : ''} ${months} month${months !== 1 ? 's' : ''} ${days} day${days !== 1 ? 's' : ''}`;
+  };
+
+  // Watch DOB changes in edit form and update age
+  useEffect(() => {
+    if (editFormData.student_date_of_birth) {
+      const newAge = calculateAge(editFormData.student_date_of_birth);
+      setEditCalculatedAge(newAge);
+    }
+  }, [editFormData.student_date_of_birth]);
+
+  const handleEditSave = async () => {
+    if (!editingStudent) return;
+    setEditLoading(true);
+    try {
+      await API.Update(Number(editingStudent.student_id), editFormData);
+      toast.success("Student updated successfully", { position: "bottom-center" });
+      setIsEditModalOpen(false);
+      GetData();
+    } catch (error) {
+      toast.error("Failed to update student", { position: "bottom-center" });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Define formDeleteHandler
   const formDeleteHandler = async (reason: string) => {
     if (!modalStudent || !currentUserId) return;
     
@@ -102,6 +200,11 @@ export default function ModernStudentTable() {
     {
       accessorKey: "student_age",
       header: "Student Age",
+      cell: ({ row }) => {
+        const dateOfBirth = row.original.student_date_of_birth;
+        const age = dateOfBirth ? calculateAge(dateOfBirth) : "N/A";
+        return <div className="font-medium">{age}</div>;
+      },
     },
     {
       accessorKey: "student_gender",
@@ -127,33 +230,43 @@ export default function ModernStudentTable() {
       accessorKey: "Action",
       header: "Action",
       cell: ({ row }) => {
-        // Only ADMIN and PRINCIPAL can delete students
-        const canDelete = role === "ADMIN" || role === "PRINCIPAL";
-        
+        const canEdit   = role === "ADMIN" || role === "PRINCIPAL";
+        const canDelete = role === "ADMIN";
+
         return (
           <div className="flex gap-2 items-center no-print">
-            <Button
-              variant="outline"
-              size="sm"
+            {/* View — all roles */}
+            <button
               onClick={() => {
                 setSelectedStudent(row.original);
                 setShowDetailsDialog(true);
               }}
-              className="flex items-center gap-1"
+              className="p-1 text-gray-600 hover:bg-gray-100 rounded transition"
+              title="View"
             >
-              <Eye className="w-4 h-4" />
-              <span className="hidden sm:inline">View</span>
-            </Button>
-            {canDelete && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setModalStudent({ id: Number(row.original.student_id), name: row.original.student_name })}
-                className="flex items-center gap-1 text-red-600 hover:text-red-700"
+              <Eye size={16} />
+            </button>
+
+            {/* Edit — ADMIN and PRINCIPAL */}
+            {canEdit && (
+              <button
+                onClick={() => handleEditClick(row.original)}
+                className="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
+                title="Edit"
               >
-                <Trash2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Delete</span>
-              </Button>
+                <Edit2 size={16} />
+              </button>
+            )}
+
+            {/* Delete — ADMIN only */}
+            {canDelete && (
+              <button
+                onClick={() => setModalStudent({ id: Number(row.original.student_id), name: row.original.student_name })}
+                className="p-1 text-red-600 hover:bg-red-100 rounded transition"
+                title="Delete"
+              >
+                <Trash2 size={16} />
+              </button>
             )}
           </div>
         );
@@ -303,26 +416,38 @@ export default function ModernStudentTable() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  {/* View — all roles */}
+                  <button
                     onClick={() => {
                       setSelectedStudent(row.original);
                       setShowDetailsDialog(true);
                     }}
-                    className="flex items-center gap-1"
+                    className="p-1 text-gray-600 hover:bg-gray-100 rounded transition"
+                    title="View"
                   >
-                    <Eye className="w-4 h-4" />
-                  </Button>
+                    <Eye size={16} />
+                  </button>
+
+                  {/* Edit — ADMIN and PRINCIPAL */}
                   {(role === "ADMIN" || role === "PRINCIPAL") && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setModalStudent({ id: Number(row.original.student_id), name: row.original.student_name })}
-                      className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                    <button
+                      onClick={() => handleEditClick(row.original)}
+                      className="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
+                      title="Edit"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                      <Edit2 size={16} />
+                    </button>
+                  )}
+
+                  {/* Delete — ADMIN only */}
+                  {role === "ADMIN" && (
+                    <button
+                      onClick={() => setModalStudent({ id: Number(row.original.student_id), name: row.original.student_name })}
+                      className="p-1 text-red-600 hover:bg-red-100 rounded transition"
+                      title="Delete"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   )}
                 </div>
               </div>
@@ -337,7 +462,7 @@ export default function ModernStudentTable() {
                 </div>
                 <div>
                   <p className="font-medium text-gray-600 dark:text-gray-400">Age</p>
-                  <p className="text-gray-900 dark:text-white">{row.original.student_age}</p>
+                  <p className="text-gray-900 dark:text-white">{row.original.student_date_of_birth ? calculateAge(row.original.student_date_of_birth) : "N/A"}</p>
                 </div>
                 <div>
                   <p className="font-medium text-gray-600 dark:text-gray-400">Gender</p>
@@ -411,7 +536,7 @@ export default function ModernStudentTable() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Age</p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">{selectedStudent.student_age}</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{selectedStudent.student_date_of_birth ? calculateAge(selectedStudent.student_date_of_birth) : "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Gender</p>
@@ -476,6 +601,118 @@ export default function ModernStudentTable() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Student Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+          </DialogHeader>
+
+          {editingStudent && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+
+              {/* Student Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 border-b pb-2">
+                  Student Information
+                </h3>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Student Name</label>
+                  <Input value={editFormData.student_name ?? ""} onChange={(e) => setEditFormData({ ...editFormData, student_name: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Date of Birth</label>
+                  <Input type="date" value={editFormData.student_date_of_birth ?? ""} onChange={(e) => setEditFormData({ ...editFormData, student_date_of_birth: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Age</label>
+                  <Input
+                    className="bg-gray-100 dark:bg-gray-800 cursor-not-allowed"
+                    value={editCalculatedAge || ""}
+                    readOnly
+                  />
+                  <p className="text-gray-500 text-xs mt-1">
+                    {editCalculatedAge && editCalculatedAge !== "Invalid date" ? editCalculatedAge : "Select DOB to calculate"}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Gender</label>
+                  <Input value={editFormData.student_gender ?? ""} onChange={(e) => setEditFormData({ ...editFormData, student_gender: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Education</label>
+                  <Input value={editFormData.student_education ?? ""} onChange={(e) => setEditFormData({ ...editFormData, student_education: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Additional Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 border-b pb-2">
+                  Additional Information
+                </h3>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Class Name</label>
+                  <Select
+                    options={classNameList}
+                    value={editFormData.class_name ?? ""}
+                    onChange={(e) => setEditFormData({ ...editFormData, class_name: e.target.value })}
+                    DisplayItem="title"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase">City</label>
+                  <Input value={editFormData.student_city ?? ""} onChange={(e) => setEditFormData({ ...editFormData, student_city: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Address</label>
+                  <Input value={editFormData.student_address ?? ""} onChange={(e) => setEditFormData({ ...editFormData, student_address: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Father Information */}
+              <div className="space-y-4 md:col-span-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 border-b pb-2">
+                  Father Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-500 uppercase">Father Name</label>
+                    <Input value={editFormData.father_name ?? ""} onChange={(e) => setEditFormData({ ...editFormData, father_name: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-500 uppercase">Father Contact</label>
+                    <Input value={editFormData.father_contact ?? ""} onChange={(e) => setEditFormData({ ...editFormData, father_contact: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-500 uppercase">Father Occupation</label>
+                    <Input value={editFormData.father_occupation ?? ""} onChange={(e) => setEditFormData({ ...editFormData, father_occupation: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-500 uppercase">Father CNIC</label>
+                    <Input value={editFormData.father_cnic ?? ""} onChange={(e) => setEditFormData({ ...editFormData, father_cnic: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-500 uppercase">Father Caste Name</label>
+                    <Input value={editFormData.father_cast_name ?? ""} onChange={(e) => setEditFormData({ ...editFormData, father_cast_name: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2 border-t mt-2">
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditSave} disabled={editLoading}>
+              {editLoading ? <LoaderIcon className="animate-spin w-4 h-4 mr-2" /> : null}
+              Save Changes
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

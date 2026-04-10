@@ -4,8 +4,8 @@ from typing import List, Annotated
 from datetime import datetime
 
 from db import get_session
-from schemas.students_model import DeletedStudent, Students, DeletedStudentResponse
-from user.user_crud import require_admin_principal
+from schemas.students_model import DeletedStudent, DeletedStudentResponse, Students
+from user.user_crud import require_admin_principal, require_admin
 from user.user_models import User
 
 deleted_students_router = APIRouter(
@@ -83,3 +83,30 @@ def restore_student(
     session.commit()
 
     return {"message": f"Student '{deleted.student_name}' restored successfully."}
+
+
+@deleted_students_router.delete("/{deleted_student_id}/permanent")
+def permanently_delete_student(
+    deleted_student_id: int,
+    user: Annotated[User, Depends(require_admin())],
+    session: Annotated[Session, Depends(get_session)]
+):
+    """
+    Permanently delete a soft-deleted student record from the deleted_students table.
+    This is a hard delete - the record cannot be recovered.
+    Admin only - Principals cannot perform this action.
+    """
+    # 1. Fetch the deleted record
+    deleted = session.exec(
+        select(DeletedStudent).where(DeletedStudent.student_id == deleted_student_id)
+    ).first()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Deleted student record not found")
+
+    student_name = deleted.student_name
+
+    # 2. Permanently remove from deleted_students table
+    session.delete(deleted)
+    session.commit()
+
+    return {"message": f"Student '{student_name}' permanently deleted. Record cannot be recovered."}

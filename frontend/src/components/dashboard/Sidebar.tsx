@@ -279,6 +279,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             width={50}
             height={50}
             className="dark:invert"
+            unoptimized
           />
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
             MADRESSA ZAID BIN SABIT (R.A)
@@ -297,7 +298,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <h2 className="text-sm font-semibold text-gray-700 uppercase dark:text-gray-200">
                 {userData ? JSON.parse(userData).username : "Guest"}
             </h2>
-            
+            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">
+              {role || "Loading..."}
+            </p>
           </div>
         </div>
 

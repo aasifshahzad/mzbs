@@ -83,6 +83,37 @@ export const IncomeAPI = {
       console.error("API Error:", error);
       throw error;
     }
+  },
+
+  UpdateIncome: async (incomeId: number, incomeData: any) => {
+    try {
+      const response = await AxiosInstance.patch(
+        `/income/update/${incomeId}`,
+        JSON.stringify(incomeData),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      console.log("API Response:", response);
+      return response;
+    } catch (error) {
+      console.error("API Error:", error);
+      throw error;
+    }
+  },
+
+  DeleteIncome: async (incomeId: number) => {
+    try {
+      const response = await AxiosInstance.delete(
+        `/income/delete/${incomeId}`
+      );
+      return response;
+    } catch (error) {
+      console.error("API Error:", error);
+      throw error;
+    }
   }
 };
 

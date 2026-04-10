@@ -41,6 +41,22 @@ export namespace StudentAPI {
     }
   };
 
+  export async function Update(student_id: number, data: Partial<StudentModel>) {
+    try {
+      const response = await AxiosInstance.patch(
+        `/students/${student_id}`,
+        JSON.stringify(data),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error("API Error:", error);
+      throw error;
+    }
+  }
+
   export async function Delete(student_id: number, payload?: { reason: string; deleted_by: number }) {
     try {
       const response = await AxiosInstance.delete(
@@ -71,6 +87,18 @@ export namespace StudentAPI {
       return response.data;
     } catch (error) {
       console.error('Error restoring student:', error);
+      throw error;
+    }
+  }
+
+  export async function PermanentlyDeleteStudent(deletedRecordId: number) {
+    try {
+      const response = await AxiosInstance.delete(
+        `/deleted-students/${deletedRecordId}/permanent`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error permanently deleting student:', error);
       throw error;
     }
   }

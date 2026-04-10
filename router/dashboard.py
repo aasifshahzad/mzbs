@@ -10,8 +10,9 @@ from schemas.dashboard_model import (
 )
 from user.user_models import User
 from schemas.attendance_model import Attendance, AttendanceValue
-from schemas.class_names_model import ClassNames
 from schemas.students_model import Students
+from schemas.class_names_model import ClassNames
+
 from schemas.income_model import Income
 from schemas.expense_model import Expense
 from schemas.fee_model import Fee  
