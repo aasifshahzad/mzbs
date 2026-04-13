@@ -88,6 +88,7 @@ const MarkAttendance = () => {
     SelectComponentOption[]
   >([]);
   const [isLoading, setIsLoading] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     GetClassName();
@@ -250,6 +251,39 @@ const MarkAttendance = () => {
         />
       ),
     }),
+    columnHelper.display({
+      id: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const { present, absent, late, leave } = row.original;
+        
+        if (present) return (
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+            Present
+          </span>
+        );
+        if (absent) return (
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+            Absent
+          </span>
+        );
+        if (late) return (
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
+            Late
+          </span>
+        );
+        if (leave) return (
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+            Leave
+          </span>
+        );
+        return (
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-400">
+            —
+          </span>
+        );
+      },
+    }),
   ];
 
   const table = useReactTable({
@@ -339,31 +373,27 @@ const onSubmit = async (formData: MarkAttInput) => {
   };
 
   return (
-    <div className="flex flex-col gap-2 -mt-2">
+    <div className="flex flex-col gap-2 w-full overflow-y-auto">
       <Header value="Mark Attendance" />
       <Loader isActive={isLoading} />
-      <div className="ml-2 bg-white dark:bg-transparent drop-shadow-sm border border-gray-200 dark:border-secondary rounded-lg w-[98%] p-2">
+      <div className="mx-auto bg-white dark:bg-transparent drop-shadow-sm border border-gray-200 dark:border-secondary rounded-lg w-full max-w-6xl px-2 sm:px-4 py-3 sm:py-4">
         <form onSubmit={handleSubmit(onSubmit)}>
-          <div
-            className={`${
-              useIsMobile() ? "flex-col" : "flex"
-            } gap-32 ml-1 border p-2 rounded-lg  `}
-          >
-            <div className="py-2">
-              <label className="text-gray-700 font-bold dark:text-gray-400">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 border p-3 rounded-lg">
+            <div className="space-y-1">
+              <label className="text-gray-700 font-bold dark:text-gray-400 text-sm">
                 Date
               </label>
               <Input
                 type="date"
-                className="border-gray-300 w-full md:w-36"
+                className="border-gray-300 w-full"
                 {...register("attendance_date", {
                   required: "Date is required",
                 })}
               />
-              <p className="text-red-500">{errors.attendance_date?.message}</p>
+              <p className="text-red-500 text-xs">{errors.attendance_date?.message}</p>
             </div>
 
-            <div className="py-2 w-full md:w-36">
+            <div className="space-y-1">
               <Select
                 label="Class Time"
                 options={classTimeList}
@@ -373,12 +403,12 @@ const onSubmit = async (formData: MarkAttInput) => {
                 DisplayItem="title"
                 className="w-full"
               />
-              <p className="text-red-500">
+              <p className="text-red-500 text-xs">
                 {errors.attendance_time_id?.message}
               </p>
             </div>
 
-            <div className="py-2 w-full md:w-36">
+            <div className="space-y-1">
               <Select
                 label="Class Name"
                 options={classNameList}
@@ -388,10 +418,10 @@ const onSubmit = async (formData: MarkAttInput) => {
                 DisplayItem="title"
                 className="w-full"
               />
-              <p className="text-red-500">{errors.class_name_id?.message}</p>
+              <p className="text-red-500 text-xs">{errors.class_name_id?.message}</p>
             </div>
 
-            <div className="py-2 w-full md:w-36">
+            <div className="space-y-1">
               <Select
                 label="Teacher Name"
                 options={teacherNameList}
@@ -401,29 +431,32 @@ const onSubmit = async (formData: MarkAttInput) => {
                 DisplayItem="title"
                 className="w-full"
               />
-              <p className="text-red-500">{errors.teacher_name_id?.message}</p>
+              <p className="text-red-500 text-xs">{errors.teacher_name_id?.message}</p>
             </div>
 
-            <Button
-              type="button"
-              onClick={() => handleSubmit(HandleSubmitForStudentGet)()}
-              className="mt-8 w-full md:w-[6rem]"
-            >
-              Get
-            </Button>
+            <div className="flex items-end">
+              <Button
+                type="button"
+                onClick={() => handleSubmit(HandleSubmitForStudentGet)()}
+                className="w-full"
+              >
+                Get
+              </Button>
+            </div>
           </div>
 
           {data.length > 0 && (
-            <div className="py-4 px-1 bg-background">
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
+            <div className="py-4 px-1 bg-background mt-4 flex flex-col gap-3">
+              {/* Scrollable table — capped height so Submit button is always reachable */}
+              <div className="rounded-md border overflow-y-auto max-h-[45vh]">
+                <Table className="w-full">
+                  <TableHeader className="sticky top-0 z-10">
                     {table.getHeaderGroups().map((headerGroup) => (
                       <TableRow key={headerGroup.id}>
                         {headerGroup.headers.map((header) => (
                           <TableHead
                             key={header.id}
-                            className="text-center bg-black dark:bg-secondary text-white"
+                            className="text-center text-xs sm:text-sm bg-black dark:bg-secondary text-white whitespace-nowrap px-2 sm:px-3 py-2"
                           >
                             {flexRender(
                               header.column.columnDef.header,
@@ -436,9 +469,9 @@ const onSubmit = async (formData: MarkAttInput) => {
                   </TableHeader>
                   <TableBody>
                     {table.getRowModel().rows.map((row) => (
-                      <TableRow key={row.id}>
+                      <TableRow key={row.id} className="text-xs sm:text-sm">
                         {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id} className="text-center">
+                          <TableCell key={cell.id} className="text-center whitespace-nowrap px-2 sm:px-3 py-2">
                             {flexRender(
                               cell.column.columnDef.cell,
                               cell.getContext()
@@ -450,9 +483,11 @@ const onSubmit = async (formData: MarkAttInput) => {
                   </TableBody>
                 </Table>
               </div>
-              <div className="mt-4 flex justify-end">
-                <Button type="submit">Submit Attendance</Button>
-              </div>
+
+              {/* Submit button — always visible below the table */}
+              <Button type="submit" className="w-full">
+                Submit Attendance
+              </Button>
             </div>
           )}
         </form>

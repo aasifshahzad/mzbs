@@ -388,23 +388,44 @@ const AttendanceTable: React.FC = () => {
       const response = await API.GetbyFilter(filter);
 
       if (response.status === 200) {
-        toast.success("Data fetched successfully", {
-          position: "bottom-center",
-          duration: 3000,
-        });
-        setAttendanceRecords(response.data as unknown as AttendanceRecord[]);
+        const records = response.data as unknown as AttendanceRecord[];
+        if (records && Array.isArray(records) && records.length > 0) {
+          toast.success(`Found ${records.length} records`, {
+            position: "bottom-center",
+            duration: 3000,
+          });
+          setAttendanceRecords(records);
+        } else {
+          toast.info("No records match the selected criteria", {
+            position: "bottom-center",
+            duration: 3000,
+          });
+          setAttendanceRecords([]);
+        }
       } else {
         toast.error(`Error: ${response.status} - ${response.statusText}`);
       }
     } catch (error: unknown) {
       if (error && typeof error === "object" && "response" in error) {
-        toast.error(
-          (error as APIError).response?.data?.message || "No Records Found",
-          {
-            position: "bottom-center",
-            duration: 3000,
-          }
-        );
+        const apiError = error as APIError;
+        const errorMessage = apiError.response?.data?.message || "Failed to fetch records";
+        console.error("API Error:", errorMessage);
+        toast.error(errorMessage, {
+          position: "bottom-center",
+          duration: 3000,
+        });
+      } else if (error instanceof Error) {
+        console.error("Error:", error.message);
+        toast.error("An unexpected error occurred. Please try again.", {
+          position: "bottom-center",
+          duration: 3000,
+        });
+      } else {
+        console.error("Unknown error:", error);
+        toast.error("An unexpected error occurred. Please try again.", {
+          position: "bottom-center",
+          duration: 3000,
+        });
       }
     } finally {
       setIsLoading(false);
@@ -431,14 +452,14 @@ const AttendanceTable: React.FC = () => {
   });
 
   return (
-    <div className="container mx-auto h-screen px-2 sm:px-4 py-4 sm:py-6">
+    <div className="container mx-auto min-h-screen px-2 sm:px-4 py-4 sm:py-6 pb-8">
       <form
         onSubmit={handleSubmit((data) =>
           HandleSubmitForStudentGet(data as FilteredAttendance)
         )}
       >
-        <div className="bg-white dark:bg-background rounded-xl shadow-sm border border-gray-200 dark:border-secondary p-3 sm:p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+        <div className="bg-white dark:bg-background rounded-xl shadow-sm border border-gray-200 dark:border-secondary p-3 sm:p-4 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
             <div className="space-y-1">
               <label className="text-sm text-gray-700 dark:text-gray-300 font-bold">Date</label>
               <Input
@@ -563,10 +584,10 @@ const AttendanceTable: React.FC = () => {
               </Popover>
             </div>
 
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <Button
                 type="submit"
-                className="w-full sm:w-auto px-4 py-2"
+                className="w-full sm:w-auto px-4 py-2 whitespace-nowrap"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -599,23 +620,23 @@ const AttendanceTable: React.FC = () => {
       </form>
 
       {/* Table Section */}
-      <div className="mt-4 bg-white dark:bg-background rounded-xl shadow-sm border border-gray-200 dark:border-secondary overflow-x-auto overflow-y-auto max-h-[60vh]">
+      <div className="mt-4 bg-white dark:bg-background rounded-xl shadow-sm border border-gray-200 dark:border-secondary overflow-x-auto">
         {attendanceRecords.length > 0 && (
-          <div className="flex justify-between items-center p-4 no-print border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 sm:p-4 no-print border-b border-gray-200 gap-3">
             <h3 className="text-lg font-semibold">Attendance Data</h3>
             <button
               onClick={() => {
                 const meta = `Total records: ${attendanceRecords.length} · Printed: ${new Date().toLocaleDateString()}`;
                 printRecords('attendance-print-area', 'Attendance Report', meta);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition w-full sm:w-auto justify-center sm:justify-start"
             >
               <Printer size={16} />
               Print
             </button>
           </div>
         )}
-        <div id="attendance-print-area" className="overflow-x-auto overflow-y-auto">
+        <div id="attendance-print-area" className="overflow-x-auto">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -623,7 +644,7 @@ const AttendanceTable: React.FC = () => {
                   {headerGroup.headers.map((header) => (
                     <TableHead
                       key={header.id}
-                      className={`text-xs h-10 bg-primary dark:bg-secondary text-white dark:text-gray-100 px-2 whitespace-nowrap ${
+                      className={`text-xs md:text-sm h-10 bg-primary dark:bg-secondary text-white dark:text-gray-100 px-2 sm:px-3 whitespace-nowrap ${
                         header.column.columnDef.id === "actions" ? "no-print" : ""
                       }`}
                     >
@@ -643,11 +664,11 @@ const AttendanceTable: React.FC = () => {
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="text-center py-16 sm:py-[14rem] text-gray-500"
+                    className="text-center py-8 sm:py-16 text-gray-500"
                   >
-                    <div className="flex justify-center py-6 sm:py-10 items-center space-x-2">
+                    <div className="flex justify-center py-4 sm:py-8 items-center space-x-2">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500"></div>
-                      <span>Loading records...</span>
+                      <span className="text-xs sm:text-sm">Loading records...</span>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -656,12 +677,12 @@ const AttendanceTable: React.FC = () => {
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    className="text-xs hover:bg-gray-50 dark:hover:bg-secondary"
+                    className="text-xs md:text-sm hover:bg-gray-50 dark:hover:bg-secondary"
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell 
                         key={cell.id} 
-                        className={`px-2 py-[0.4rem] whitespace-nowrap ${
+                        className={`px-2 sm:px-3 py-2 whitespace-nowrap ${
                           cell.column.columnDef.id === "actions" ? "no-print" : ""
                         }`}
                       >
@@ -677,11 +698,11 @@ const AttendanceTable: React.FC = () => {
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="text-center py-10 sm:py-16 text-gray-500"
+                    className="text-center py-8 sm:py-16 text-gray-500"
                   >
                     <div className="flex flex-col items-center justify-center">
-                      <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 text-gray-400 mb-2" />
-                      <p>No attendance records found</p>
+                      <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 mb-2" />
+                      <p className="text-xs sm:text-sm">No attendance records found</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -693,8 +714,8 @@ const AttendanceTable: React.FC = () => {
         {/* Improved Pagination Controls */}
         {attendanceRecords.length > 0 && (
           <div className="border-t border-gray-200">
-            <div className="flex items-center justify-between px-2 py-2 sm:px-4 sm:py-3">
-              <div className="text-xs sm:text-sm text-gray-700">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 py-2 sm:px-4 sm:py-3">
+              <div className="text-xs sm:text-sm text-gray-700 order-2 sm:order-1">
                 Showing{" "}
                 <span className="font-medium">
                   {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
@@ -708,7 +729,7 @@ const AttendanceTable: React.FC = () => {
                 </span>{" "}
                 of <span className="font-medium">{attendanceRecords.length}</span>
               </div>
-              <div className="flex space-x-1 sm:space-x-2">
+              <div className="flex space-x-1 sm:space-x-2 order-1 sm:order-2">
                 <Button
                   variant="outline"
                   size="sm"

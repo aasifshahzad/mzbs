@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any
 
 class UserLoginSummary(BaseModel):
     Roll: str
@@ -8,7 +8,7 @@ class UserLoginSummary(BaseModel):
 class AttendanceSummary(BaseModel):
     date: str
     class_name: str
-    attendance_values: Dict[str, int]  # e.g., {"Present": 10, "Absent": 5}
+    attendance_values: Dict[str, int]  # e.g., {"present": 10, "absent": 5}
 
 class StudentSummary(BaseModel):
     total_students: int
@@ -20,7 +20,7 @@ class StudentSummary(BaseModel):
 class IncomeExpenseCategorySummary(BaseModel):
     year: int
     month: int
-    category_summary: Dict[str, float]  # e.g., {"Category1": 1000.0, "Category2": 500.0}
+    category_summary: Dict[str, float]
 
 class GraphDataPoint(BaseModel):
     label: str
@@ -30,13 +30,15 @@ class Dataset(BaseModel):
     label: str
     data: List[float]
     backgroundColor: Union[str, List[str]]
-    borderColor: Optional[Union[str, List[str]]] = None  # Updated to accept either string or list
+    borderColor: Optional[Union[str, List[str]]] = None
     borderWidth: Optional[int] = None
+    type: Optional[str] = None          # some datasets pass type="bar"
 
 class GraphData(BaseModel):
     labels: List[str]
     datasets: List[Dataset]
     title: str
+    options: Optional[Dict[str, Any]] = None   # FIX: was missing, caused validation error
 
 class LoginGraphData(BaseModel):
     summary: List[UserLoginSummary]
@@ -54,6 +56,3 @@ class CategoryGraphData(BaseModel):
     summary: List[IncomeExpenseCategorySummary]
     graph: GraphData
     total: float
-
-
-

@@ -34,9 +34,35 @@ export const Create = async (Attendances: MarkAttInput) => {
   }
   export const GetbyFilter = async (FilteredAttendance: FilteredAttendance) => {
     try {
-      const response = await AxiosInstance.get<FilteredAttendance>(
-        `/mark_attendance/filter_attendance_by_ids?attendance_date=${FilteredAttendance.attendance_date}&attendance_time_id=${FilteredAttendance.attendance_time_id}&class_name_id=${FilteredAttendance.class_name_id}&teacher_name_id=${FilteredAttendance.teacher_name_id}&student_id=${FilteredAttendance.student_id}&father_name=${FilteredAttendance.father_name}&attendance_value_id=${FilteredAttendance.attendance_value_id}`
-      );
+      // Build query parameters, only including non-zero/non-empty values
+      const params = new URLSearchParams();
+      
+      if (FilteredAttendance.attendance_date) {
+        params.append('attendance_date', FilteredAttendance.attendance_date);
+      }
+      if (FilteredAttendance.attendance_time_id && FilteredAttendance.attendance_time_id !== 0) {
+        params.append('attendance_time_id', FilteredAttendance.attendance_time_id.toString());
+      }
+      if (FilteredAttendance.class_name_id && FilteredAttendance.class_name_id !== 0) {
+        params.append('class_name_id', FilteredAttendance.class_name_id.toString());
+      }
+      if (FilteredAttendance.teacher_name_id && FilteredAttendance.teacher_name_id !== 0) {
+        params.append('teacher_name_id', FilteredAttendance.teacher_name_id.toString());
+      }
+      if (FilteredAttendance.student_id && FilteredAttendance.student_id !== 0) {
+        params.append('student_id', FilteredAttendance.student_id.toString());
+      }
+      if (FilteredAttendance.father_name) {
+        params.append('father_name', FilteredAttendance.father_name);
+      }
+      if (FilteredAttendance.attendance_value_id && FilteredAttendance.attendance_value_id !== 0) {
+        params.append('attendance_value_id', FilteredAttendance.attendance_value_id.toString());
+      }
+
+      const queryString = params.toString();
+      const url = `/mark_attendance/filter_attendance_by_ids${queryString ? '?' + queryString : ''}`;
+      
+      const response = await AxiosInstance.get<FilteredAttendance>(url);
       return response;
     }
     catch (error) {

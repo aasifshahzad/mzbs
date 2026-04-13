@@ -22,10 +22,11 @@ export namespace DashboardAPI {
       return error;
     }
   };
-  export const GetAttendanceSummary = async () => {
+  export const GetAttendanceSummary = async (date?: string) => {
     try {
+      const query = date ? `?date=${date}` : "";
       const response = await AxiosInstance.get(
-        "/dashboard/attendance-summary"
+        `/dashboard/attendance-summary${query}`
       );
       console.log("Attendance Summary API Response:", response);
       return response;

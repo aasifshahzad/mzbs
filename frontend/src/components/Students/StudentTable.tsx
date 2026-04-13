@@ -279,8 +279,20 @@ export default function ModernStudentTable() {
     setLoading(true);
     try {
       const response = await API.Get() as { data: StudentModel[] };
-      // console.log(response.data); // Check the API response
-      setData(response.data);
+      // Sort students by student_id (serial number)
+      const sortedData = response.data.sort((a, b) => {
+        // Try numeric sorting first
+        const aNum = parseInt(a.student_id, 10);
+        const bNum = parseInt(b.student_id, 10);
+        
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return aNum - bNum;
+        }
+        
+        // Fall back to string sorting
+        return a.student_id.localeCompare(b.student_id);
+      });
+      setData(sortedData);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -306,7 +318,7 @@ export default function ModernStudentTable() {
 
   return (
     <Card className="mt-2 p-3 sm:p-6 w-full bg-white dark:bg-background rounded-lg shadow-lg">
-      <AddNewStudent onClassAdded={GetData} />
+      {(role === "ADMIN" || role === "PRINCIPAL") && <AddNewStudent onClassAdded={GetData} />}
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">

@@ -296,9 +296,7 @@ const ViewExpense = () => {
                       <TableCell>{item.category}</TableCell>
                       <TableCell>{item.to_whom}</TableCell>
                       <TableCell>{item.description}</TableCell>
-                      <TableCell className="flex items-center gap-2">
-                        <span>{item.amount}</span>
-                      </TableCell>
+                      <TableCell>{item.amount}</TableCell>
                       {(role === "ADMIN" || role === "ACCOUNTANT") && (
                         <TableCell className="no-print flex gap-2 items-center">
                           <button

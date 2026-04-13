@@ -12,6 +12,8 @@ from schemas.attendance_model import (
 )
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
+from sqlalchemy import and_
+from sqlalchemy.orm import joinedload
 from typing import Annotated, List, Optional
 from user.user_models import User, UserRole
 from user.user_crud import get_current_user
@@ -32,24 +34,6 @@ def get_filtered_attendance(
     session: Session = Depends(get_session)
 ):
     """View attendance with role-based access"""
-    stmt = (
-        select(
-            Attendance.attendance_id,
-            Attendance.attendance_date,
-            AttendanceTime.attendance_time,
-            ClassNames.class_name,
-            TeacherNames.teacher_name,
-            Students.student_name,
-            Students.father_name,
-            AttendanceValue.attendance_value,
-        )
-        .join(Attendance.attendance_time)
-        .join(Attendance.attendance_class)
-        .join(Attendance.attendance_teacher)
-        .join(Attendance.attendance_student)
-        .join(Attendance.attendance_value)
-    )
-
     # Only check if user is USER, both TEACHER and ADMIN can view all
     if current_user.role == UserRole.USER:
         raise HTTPException(
@@ -57,23 +41,34 @@ def get_filtered_attendance(
             detail="Users cannot view attendance records"
         )
 
-    result = session.exec(stmt).all()
-    if not result:
+    # Use eager loading to fetch relationships and handle optional relationships
+    stmt = select(Attendance).options(
+        joinedload(Attendance.attendance_time),
+        joinedload(Attendance.attendance_class),
+        joinedload(Attendance.attendance_teacher),
+        joinedload(Attendance.attendance_student),
+        joinedload(Attendance.attendance_value)
+    )
+
+    attendance_records = session.exec(stmt).unique().all()
+    if not attendance_records:
         raise HTTPException(status_code=404, detail="No attendance records found")
 
-    return [
-        {
-            "attendance_id": attendance_id,
-            "attendance_date": attendance_date,
-            "attendance_time": attendance_time,
-            "attendance_class": class_name,
-            "attendance_teacher": teacher_name,
-            "attendance_student": student_name,
-            "attendance_std_fname": father_name,
-            "attendance_value": attendance_value,
-        }
-        for attendance_id, attendance_date, attendance_time, class_name, teacher_name, student_name, father_name, attendance_value in result
-    ]
+    result = []
+    for att in attendance_records:
+        # Safely access optional relationships
+        result.append(FilteredAttendanceResponse(
+            attendance_id=att.attendance_id,
+            attendance_date=att.attendance_date,
+            attendance_time=att.attendance_time.attendance_time if att.attendance_time else "N/A",
+            attendance_class=att.attendance_class.class_name if att.attendance_class else "N/A",
+            attendance_teacher=att.attendance_teacher.teacher_name if att.attendance_teacher else "N/A",
+            attendance_student=att.attendance_student.student_name if att.attendance_student else "N/A",
+            attendance_std_fname=att.attendance_student.father_name if att.attendance_student else "N/A",
+            attendance_value=att.attendance_value.attendance_value if att.attendance_value else "N/A",
+        ))
+
+    return result
 
 @mark_attendance_router.post("/add_attendance/", response_model=FilteredAttendanceResponse)
 def add_attendance(
@@ -273,8 +268,14 @@ def filter_attendance_by_ids(
     attendance_value_id: Optional[int] = Query(None, description="Filter by Attendance Value ID"),
 ):
     """Filter attendance with role-based access"""
-    # Start with a base select statement
-    query = select(Attendance)
+    # Start with a base select statement with eager loading
+    query = select(Attendance).options(
+        joinedload(Attendance.attendance_time),
+        joinedload(Attendance.attendance_class),
+        joinedload(Attendance.attendance_teacher),
+        joinedload(Attendance.attendance_student),
+        joinedload(Attendance.attendance_value)
+    )
 
     # Add role-based filters first
     if current_user.role == UserRole.USER:
@@ -294,21 +295,21 @@ def filter_attendance_by_ids(
     # Apply the rest of the filters
     if attendance_date:
         query = query.where(Attendance.attendance_date == attendance_date)
-    if attendance_time_id:
+    if attendance_time_id and attendance_time_id != 0:
         query = query.where(Attendance.attendance_time_id == attendance_time_id)
-    if class_name_id:
+    if class_name_id and class_name_id != 0:
         query = query.where(Attendance.class_name_id == class_name_id)
-    if teacher_name_id:
+    if teacher_name_id and teacher_name_id != 0:
         query = query.where(Attendance.teacher_name_id == teacher_name_id)
-    if student_id:
+    if student_id and student_id != 0:
         query = query.where(Attendance.student_id == student_id)
     if father_name:
         query = query.join(Students).where(Students.father_name == father_name)
-    if attendance_value_id:
+    if attendance_value_id and attendance_value_id != 0:
         query = query.where(Attendance.attendance_value_id == attendance_value_id)
 
     # Execute the query
-    filtered_attendance = session.exec(query).all()
+    filtered_attendance = session.exec(query).unique().all()
 
     if not filtered_attendance:
         raise HTTPException(
@@ -316,19 +317,20 @@ def filter_attendance_by_ids(
             detail="No attendance records found matching the criteria"
         )
 
-    # Rest of the function remains the same
-    filtered_responses = [
-        FilteredAttendanceResponse(
+    # Build response with safe relationship access
+    filtered_responses = []
+    for att in filtered_attendance:
+        # Safely access optional relationships
+        filtered_responses.append(FilteredAttendanceResponse(
             attendance_id=att.attendance_id,
             attendance_date=att.attendance_date,
-            attendance_time=att.attendance_time.attendance_time,
-            attendance_class=att.attendance_class.class_name,
-            attendance_teacher=att.attendance_teacher.teacher_name,
-            attendance_student=att.attendance_student.student_name,
-            attendance_std_fname=att.attendance_student.father_name,
-            attendance_value=att.attendance_value.attendance_value
-        ) for att in filtered_attendance
-    ]
+            attendance_time=att.attendance_time.attendance_time if att.attendance_time else "N/A",
+            attendance_class=att.attendance_class.class_name if att.attendance_class else "N/A",
+            attendance_teacher=att.attendance_teacher.teacher_name if att.attendance_teacher else "N/A",
+            attendance_student=att.attendance_student.student_name if att.attendance_student else "N/A",
+            attendance_std_fname=att.attendance_student.father_name if att.attendance_student else "N/A",
+            attendance_value=att.attendance_value.attendance_value if att.attendance_value else "N/A"
+        ))
 
     return filtered_responses
 
