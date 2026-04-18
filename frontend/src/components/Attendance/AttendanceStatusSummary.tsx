@@ -65,7 +65,7 @@ const AttendanceStatusSummary = () => {
   const [allStudentsData, setAllStudentsData] = useState<StudentData[]>([]);
   const [classesLoading, setClassesLoading] = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(false);
-  
+
   // Top 10 results
   const [topPresent, setTopPresent] = useState<TopStudentStats[]>([]);
   const [topAbsent, setTopAbsent] = useState<TopStudentStats[]>([]);
@@ -106,7 +106,7 @@ const AttendanceStatusSummary = () => {
   const loadClasses = async () => {
     try {
       setClassesLoading(true);
-      const response = await ClassNameAPI.Get();
+      const response = await ClassNameAPI.Get() as { data: ClassNamesData[] };
       setClasses(response.data || []);
     } catch (error) {
       console.error("Error loading classes:", error);
