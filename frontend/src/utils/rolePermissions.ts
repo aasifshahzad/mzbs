@@ -17,6 +17,7 @@ export type Section =
   | "expenses"
   | "income"
   | "attendance_time"
+  | "salary"
   | "setup";
 
 // Role to accessible sections mapping
@@ -31,6 +32,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "expenses",
     "income",
     "attendance_time",
+    "salary",
     "setup",
   ],
   PRINCIPAL: [
@@ -41,7 +43,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "classes",
   ],
   TEACHER: ["attendance", "students", "dashboard"],
-  ACCOUNTANT: ["expenses", "fees", "income", "dashboard"],
+  ACCOUNTANT: ["expenses", "fees", "income", "dashboard", "salary"],
   FEE_MANAGER: ["expenses", "fees", "income", "dashboard", "students"],
   USER: ["dashboard"], // Students can access own attendance & fees through filtered endpoints
 };

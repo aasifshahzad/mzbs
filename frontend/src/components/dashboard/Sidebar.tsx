@@ -14,6 +14,7 @@ import {
   UserCog2,
   LogOut,
   ChevronDown,
+  Banknote,
 } from "lucide-react";
 import { RiCashLine } from "react-icons/ri";
 import { BsCashCoin } from "react-icons/bs";
@@ -113,6 +114,33 @@ const menuList: MenuItem[] = [
     ],
   },
   {
+    id: 32,
+    name: "Salary",
+    icon: Banknote,
+    path: "/dashboard/salary",
+    hasSubmenu: true,
+    submenu: [
+      {
+        id: 33,
+        name: "Set Salary",
+        icon: GoDotFill,
+        path: "/dashboard/salary/set",
+      },
+      {
+        id: 34,
+        name: "Manage Salary",
+        icon: GoDotFill,
+        path: "/dashboard/salary/manage",
+      },
+      {
+        id: 35,
+        name: "View Salary",
+        icon: GoDotFill,
+        path: "/dashboard/salary/view",
+      },
+    ],
+  },
+  {
     id: 13,
     name: "Income",
     icon: BsCashCoin,
@@ -202,6 +230,7 @@ const getMenuItemSection = (path: string): string => {
   if (lowerPath.includes("/students")) return "students";
   if (lowerPath.includes("/attendance")) return "attendance";
   if (lowerPath.includes("/fees")) return "fees";
+  if (lowerPath.includes("/salary")) return "salary";
   if (lowerPath.includes("/income")) return "income";
   if (lowerPath.includes("/expense")) return "expenses";
   if (lowerPath.includes("/setup") || lowerPath.includes("/settings")) return "setup";

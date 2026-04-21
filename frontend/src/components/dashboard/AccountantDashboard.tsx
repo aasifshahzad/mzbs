@@ -5,6 +5,7 @@ import { useRole } from "@/context/RoleContext";
 import { Header } from "@/components/dashboard/Header";
 import { DashboardAPI } from "@/api/Dashboard/dashboardAPI";
 import { CardsSkeleton, Skeleton } from "@/components/dashboard/Skeleton";
+import SalarySummarySection from "@/components/Salary/SalarySummarySection";
 import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line } from "recharts";
 
@@ -793,6 +794,9 @@ export function AccountantDashboard() {
             </div>
           </motion.div>
         </div>
+
+        {/* Salary Summary Section */}
+        <SalarySummarySection />
       </main>
     </div>
   );

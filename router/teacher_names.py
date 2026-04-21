@@ -8,7 +8,7 @@ from db import get_session
 
 from schemas.teacher_names_model import TeacherNames, TeacherNamesCreate, TeacherNamesResponse
 from schemas.attendance_model import Attendance
-from user.user_crud import require_admin, require_admin_teacher_principal
+from user.user_crud import require_admin, require_admin_teacher_principal, require_admin_teacher_principal_accountant
 from user.user_models import User
 
 teachernames_router = APIRouter(
@@ -55,7 +55,7 @@ def create_teachernames( user: Annotated[User, Depends(require_admin())],teacher
 
 
 @teachernames_router.get("/teacher-names-all/", response_model=List[TeacherNamesResponse])
-def read_teachernames(current_user: Annotated[User, Depends(require_admin_teacher_principal())],session: Session = Depends(get_session)):
+def read_teachernames(current_user: Annotated[User, Depends(require_admin_teacher_principal_accountant())],session: Session = Depends(get_session)):
     teachernames = session.exec(select(TeacherNames)).all()
     return teachernames
 
@@ -63,7 +63,7 @@ def read_teachernames(current_user: Annotated[User, Depends(require_admin_teache
 
 
 @teachernames_router.get("/{teacher_name_id}", response_model=TeacherNamesResponse)
-def read_teachernames(current_user: Annotated[User, Depends(require_admin_teacher_principal())],teacher_name_id: int, session: Session = Depends(get_session)):
+def read_teachernames(current_user: Annotated[User, Depends(require_admin_teacher_principal_accountant())],teacher_name_id: int, session: Session = Depends(get_session)):
     teachernames = session.get(TeacherNames, teacher_name_id)
     if not teachernames:
         raise HTTPException(

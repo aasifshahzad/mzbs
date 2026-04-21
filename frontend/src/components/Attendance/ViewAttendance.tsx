@@ -200,31 +200,30 @@ const AttendanceTable: React.FC = () => {
           row.getValue("attendance_value") as string
         ).toLowerCase();
         return (
-          <div className="flex items-center">
+          <div className="flex justify-center">
             {value === "present" ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-transparent text-green-700">
-                <Check className="w-3 h-3 mr-1" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
                 Present
               </span>
             ) : value === "absent" ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-transparent text-red-700">
-                <AlertCircle className="w-3 h-3 mr-1" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
                 Absent
               </span>
             ) : value === "late" ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 dark:bg-transparent text-yellow-700">
-                <Clock className="w-3 h-3 mr-1" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
                 Late
               </span>
             ) : value === "leave" ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 dark:bg-transparent text-orange-700">
-                <AlertCircle className="w-3 h-3 mr-1" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
                 Leave
               </span>
             ) : (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 dark:bg-transparent text-gray-700">
-                <Clock className="w-3 h-3 mr-1" />
-                Other
+              <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 border border-gray-200 dark:bg-slate-700 dark:text-slate-500 dark:border-slate-600">
+                —
               </span>
             )}
           </div>
@@ -452,306 +451,388 @@ const AttendanceTable: React.FC = () => {
   });
 
   return (
-    <div className="container mx-auto min-h-screen px-2 sm:px-4 py-4 sm:py-6 pb-8">
-      <form
-        onSubmit={handleSubmit((data) =>
-          HandleSubmitForStudentGet(data as FilteredAttendance)
-        )}
-      >
-        <div className="bg-white dark:bg-background rounded-xl shadow-sm border border-gray-200 dark:border-secondary p-3 sm:p-4 w-full">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
-            <div className="space-y-1">
-              <label className="text-sm text-gray-700 dark:text-gray-300 font-bold">Date</label>
-              <Input
-                type="date"
-                className="w-full focus:ring-primary dark:bg-background dark:text-gray-100 dark:border-gray-100 border-black"
-                {...register("attendance_date", {})}
-              />
-              <p className="text-red-500 text-xs">
-                {errors.attendance_date?.message}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <Select
-                label="Class Time"
-                options={classTimeList}
-                {...register("attendance_time_id", { valueAsNumber: true })}
-                DisplayItem="title"
-                className="w-full focus:ring-primary dark:bg-secondary dark:text-gray-100 dark:border-gray-100"
-              />
-              <p className="text-red-500 text-xs">
-                {errors.attendance_time_id?.message}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <Select
-                label="Class Name"
-                options={classNameList}
-                {...register("class_name_id", { valueAsNumber: true })}
-                DisplayItem="title"
-                className="w-full focus:ring-primary"
-              />
-              <p className="text-red-500 text-xs">
-                {errors.class_name_id?.message}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <Select
-                label="Teacher Name"
-                options={teacherNameList}
-                {...register("teacher_name_id", { valueAsNumber: true })}
-                DisplayItem="title"
-                className="w-full focus:ring-primary"
-              />
-              <p className="text-red-500 text-xs">
-                {errors.teacher_name_id?.message}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm text-gray-700 dark:text-gray-300 font-bold">Student</label>
-              <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={open}
-                    className="w-full justify-between"
-                  >
-                    {value
-                      ? studentsList.find(
-                          (student) => student.id.toString() === value
-                        )?.title
-                      : "Select student..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput
-                      placeholder="Search student..."
-                      className="h-9"
-                    />
-                    <CommandList>
-                      {isLoading ? (
-                        <div className="p-2 text-center text-gray-500">
-                          Loading...
-                        </div>
-                      ) : (
-                        <>
-                          <CommandEmpty>No student found.</CommandEmpty>
-                          <CommandGroup>
-                            {studentsList.map((student) => (
-                              <CommandItem
-                                key={student.id}
-                                value={student.id.toString()}
-                                onSelect={(currentValue: string) => {
-                                  setValue(
-                                    currentValue === value ? "" : currentValue
-                                  );
-                                  setOpen(false);
-                                  const selectedStudent = studentsList.find(
-                                    (s) => s.id.toString() === currentValue
-                                  );
-                                  if (selectedStudent) {
-                                    setFormValue(
-                                      "student_id",
-                                      Number(selectedStudent.id)
-                                    );
-                                  }
-                                }}
-                              >
-                                {student.title}
-                                <Check
-                                  className={cn(
-                                    "ml-auto h-4 w-4",
-                                    value === student.id.toString()
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </>
-                      )}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="flex items-end gap-2">
-              <Button
-                type="submit"
-                className="w-full sm:w-auto px-4 py-2 whitespace-nowrap"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent rounded-full" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className="w-4 h-4 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                    Search Records
-                  </>
+    <div className="flex flex-col w-full h-screen bg-gray-50 dark:bg-slate-950">
+      {/* ✅ FIX 1: h-screen (not min-h-screen) so flex children get a bounded height */}
+      
+      {/*
+        ✅ FIX 2: min-h-0 is CRITICAL here.
+        Flex items default to min-height: auto, which lets them grow past the
+        parent's height, breaking overflow-y-auto. min-h-0 removes that floor.
+      */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <form onSubmit={handleSubmit((data) => HandleSubmitForStudentGet(data as FilteredAttendance))}>
+          
+          {/*
+            ✅ FIX 3: Filter bar is sticky so it stays visible while scrolling
+            through records.
+          */}
+          <div className="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 shadow-sm">
+            <div className="px-4 sm:px-6 py-4">
+              
+              {/* Section title row */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-6 bg-blue-600 rounded-full" />
+                  <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
+                    Filters
+                  </h2>
+                </div>
+                {attendanceRecords.length > 0 && (
+                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-800">
+                    {attendanceRecords.length} Records Found
+                  </span>
                 )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </form>
+              </div>
 
-      {/* Table Section */}
-      <div className="mt-4 bg-white dark:bg-background rounded-xl shadow-sm border border-gray-200 dark:border-secondary overflow-x-auto">
-        {attendanceRecords.length > 0 && (
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 sm:p-4 no-print border-b border-gray-200 gap-3">
-            <h3 className="text-lg font-semibold">Attendance Data</h3>
-            <button
-              onClick={() => {
-                const meta = `Total records: ${attendanceRecords.length} · Printed: ${new Date().toLocaleDateString()}`;
-                printRecords('attendance-print-area', 'Attendance Report', meta);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition w-full sm:w-auto justify-center sm:justify-start"
-            >
-              <Printer size={16} />
-              Print
-            </button>
-          </div>
-        )}
-        <div id="attendance-print-area" className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className={`text-xs md:text-sm h-10 bg-primary dark:bg-secondary text-white dark:text-gray-100 px-2 sm:px-3 whitespace-nowrap ${
-                        header.column.columnDef.id === "actions" ? "no-print" : ""
-                      }`}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="text-center py-8 sm:py-16 text-gray-500"
-                  >
-                    <div className="flex justify-center py-4 sm:py-8 items-center space-x-2">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500"></div>
-                      <span className="text-xs sm:text-sm">Loading records...</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    className="text-xs md:text-sm hover:bg-gray-50 dark:hover:bg-secondary"
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell 
-                        key={cell.id} 
-                        className={`px-2 sm:px-3 py-2 whitespace-nowrap ${
-                          cell.column.columnDef.id === "actions" ? "no-print" : ""
-                        }`}
+              {/*
+                Responsive grid:
+                - Mobile:  2 columns
+                - Tablet:  3 columns
+                - Desktop: 6 columns in one row
+              */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide block">
+                    Date
+                  </label>
+                  <Input
+                    type="date"
+                    className="h-10 text-sm border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-700 text-gray-900 dark:text-gray-100 rounded-lg w-full transition-colors"
+                    {...register("attendance_date", {})}
+                  />
+                  <p className="text-red-500 text-xs">
+                    {errors.attendance_date?.message}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide block">
+                    Class Time
+                  </label>
+                  <Select
+                    options={classTimeList}
+                    {...register("attendance_time_id", { valueAsNumber: true })}
+                    DisplayItem="title"
+                    className="h-10 text-sm rounded-lg w-full"
+                  />
+                  <p className="text-red-500 text-xs">
+                    {errors.attendance_time_id?.message}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide block">
+                    Class Name
+                  </label>
+                  <Select
+                    options={classNameList}
+                    {...register("class_name_id", { valueAsNumber: true })}
+                    DisplayItem="title"
+                    className="h-10 text-sm rounded-lg w-full"
+                  />
+                  <p className="text-red-500 text-xs">
+                    {errors.class_name_id?.message}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide block">
+                    Teacher Name
+                  </label>
+                  <Select
+                    options={teacherNameList}
+                    {...register("teacher_name_id", { valueAsNumber: true })}
+                    DisplayItem="title"
+                    className="h-10 text-sm rounded-lg w-full"
+                  />
+                  <p className="text-red-500 text-xs">
+                    {errors.teacher_name_id?.message}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide block">
+                    Student
+                  </label>
+                  <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={open}
+                        className="w-full justify-between h-10 text-sm"
                       >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="text-center py-8 sm:py-16 text-gray-500"
+                        {value
+                          ? studentsList.find(
+                              (student) => student.id.toString() === value
+                            )?.title
+                          : "Select student..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search student..."
+                          className="h-9"
+                        />
+                        <CommandList>
+                          {isLoading ? (
+                            <div className="p-2 text-center text-gray-500">
+                              Loading...
+                            </div>
+                          ) : (
+                            <>
+                              <CommandEmpty>No student found.</CommandEmpty>
+                              <CommandGroup>
+                                {studentsList.map((student) => (
+                                  <CommandItem
+                                    key={student.id}
+                                    value={student.id.toString()}
+                                    onSelect={(currentValue: string) => {
+                                      setValue(
+                                        currentValue === value ? "" : currentValue
+                                      );
+                                      setOpen(false);
+                                      const selectedStudent = studentsList.find(
+                                        (s) => s.id.toString() === currentValue
+                                      );
+                                      if (selectedStudent) {
+                                        setFormValue(
+                                          "student_id",
+                                          Number(selectedStudent.id)
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    {student.title}
+                                    <Check
+                                      className={cn(
+                                        "ml-auto h-4 w-4",
+                                        value === student.id.toString()
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Search Button — spans 2 cols on mobile to stay on same row as Student */}
+                <div className="flex items-end col-span-2 sm:col-span-1">
+                  <Button
+                    type="submit"
+                    className="w-full h-10 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 dark:bg-blue-700 dark:hover:bg-blue-600 text-white font-bold text-sm rounded-lg transition-colors shadow-sm"
+                    disabled={isLoading}
                   >
-                    <div className="flex flex-col items-center justify-center">
-                      <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 mb-2" />
-                      <p className="text-xs sm:text-sm">No attendance records found</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        
-        {/* Improved Pagination Controls */}
-        {attendanceRecords.length > 0 && (
-          <div className="border-t border-gray-200">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 py-2 sm:px-4 sm:py-3">
-              <div className="text-xs sm:text-sm text-gray-700 order-2 sm:order-1">
-                Showing{" "}
-                <span className="font-medium">
-                  {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
-                </span>{" "}
-                -{" "}
-                <span className="font-medium">
-                  {Math.min(
-                    (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                    attendanceRecords.length
-                  )}
-                </span>{" "}
-                of <span className="font-medium">{attendanceRecords.length}</span>
-              </div>
-              <div className="flex space-x-1 sm:space-x-2 order-1 sm:order-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 w-8 sm:h-9 sm:w-9 p-0"
-                  onClick={() => table.previousPage()}
-                  disabled={!table.getCanPreviousPage()}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 w-8 sm:h-9 sm:w-9 p-0"
-                  onClick={() => table.nextPage()}
-                  disabled={!table.getCanNextPage()}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                    {isLoading ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent rounded-full" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                          />
+                        </svg>
+                        Search
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        )}
+
+          {/* ── Table Section ─────────────────────────────────────────────── */}
+          {attendanceRecords.length > 0 && (
+            <>
+              {/* Header with title and print button */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 sm:p-4 no-print border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Attendance Records</h3>
+                <button
+                  onClick={() => {
+                    const meta = `Total records: ${attendanceRecords.length} · Printed: ${new Date().toLocaleDateString()}`;
+                    printRecords('attendance-print-area', 'Attendance Report', meta);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition w-full sm:w-auto justify-center sm:justify-start mt-2 sm:mt-0"
+                >
+                  <Printer size={16} />
+                  Print
+                </button>
+              </div>
+
+              {/*
+                ✅ FIX 4: overflow-x-auto wrapper so the table scrolls
+                horizontally on narrow screens instead of overflowing or
+                squishing columns unreadably.
+              */}
+              <div id="attendance-print-area" className="overflow-x-auto bg-white dark:bg-slate-900">
+                <Table className="w-full min-w-full">
+                  <TableHeader>
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <TableRow key={headerGroup.id} className="border-0">
+                        {headerGroup.headers.map((header) => (
+                          <TableHead
+                            key={header.id}
+                            className={`
+                              text-center text-xs font-bold uppercase tracking-wider
+                              bg-slate-800 dark:bg-slate-950
+                              text-slate-200 dark:text-slate-300
+                              py-3.5 border-0 whitespace-nowrap px-3
+                              ${header.column.columnDef.id === "actions" ? "no-print" : ""}
+                            `}
+                          >
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext()
+                                )}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={columns.length}
+                          className="text-center py-8 sm:py-16 text-gray-500"
+                        >
+                          <div className="flex justify-center py-4 sm:py-8 items-center space-x-2">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500"></div>
+                            <span className="text-xs sm:text-sm">Loading records...</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : table.getRowModel().rows?.length ? (
+                      table.getRowModel().rows.map((row, idx) => (
+                        <TableRow
+                          key={row.id}
+                          data-state={row.getIsSelected() && "selected"}
+                          className={`
+                            text-xs md:text-sm transition-colors border-b border-gray-100 dark:border-slate-700/60
+                            ${idx % 2 === 0
+                              ? "bg-white dark:bg-slate-900"
+                              : "bg-slate-50/60 dark:bg-slate-800/40"
+                            }
+                            hover:bg-blue-50/60 dark:hover:bg-slate-700/50
+                          `}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell 
+                              key={cell.id} 
+                              className={`px-3 py-2 whitespace-nowrap text-center ${
+                                cell.column.columnDef.id === "actions" ? "no-print" : ""
+                              }`}
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell
+                          colSpan={columns.length}
+                          className="text-center py-8 sm:py-16 text-gray-500"
+                        >
+                          <div className="flex flex-col items-center justify-center">
+                            <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400 mb-2" />
+                            <p className="text-xs sm:text-sm">No attendance records found</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Improved Pagination Controls */}
+              {attendanceRecords.length > 0 && (
+                <div className="border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-3">
+                    <div className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 order-2 sm:order-1">
+                      Showing{" "}
+                      <span className="font-medium">
+                        {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
+                      </span>{" "}
+                      -{" "}
+                      <span className="font-medium">
+                        {Math.min(
+                          (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                          attendanceRecords.length
+                        )}
+                      </span>{" "}
+                      of <span className="font-medium">{attendanceRecords.length}</span>
+                    </div>
+                    <div className="flex space-x-1 sm:space-x-2 order-1 sm:order-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 sm:h-9 sm:w-9 p-0"
+                        onClick={() => table.previousPage()}
+                        disabled={!table.getCanPreviousPage()}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 sm:h-9 sm:w-9 p-0"
+                        onClick={() => table.nextPage()}
+                        disabled={!table.getCanNextPage()}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Empty state */}
+          {!isLoading && attendanceRecords.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 px-4 text-center bg-white dark:bg-slate-900 min-h-[50vh]">
+              <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-4">
+                <AlertCircle className="h-8 w-8 text-blue-400" />
+              </div>
+              <h3 className="text-base font-bold text-gray-700 dark:text-gray-300 mb-1">
+                No Records Found
+              </h3>
+              <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xs">
+                Use the filters above to search for attendance records
+              </p>
+            </div>
+          )}
+
+          {/* Bottom breathing room */}
+          <div className="h-8" />
+        </form>
       </div>
     </div>
   );

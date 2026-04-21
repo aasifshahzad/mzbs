@@ -115,6 +115,26 @@ def get_attendance_summary(
         
         unmarked_count = max(0, total_students - marked_count)
 
+        # FIX: Always start with ALL classes to ensure all are shown
+        # Get all classes first
+        all_classes = session.exec(select(ClassNames)).all()
+        
+        # Initialize class_data with all classes
+        class_data = {
+            c.class_name_id: {
+                "date": str(selected_date),
+                "class_name": c.class_name,
+                "attendance_values": {
+                    "present": 0,
+                    "absent": 0,
+                    "late": 0,
+                    "leave": 0,
+                    "unmarked": 0,
+                }
+            }
+            for c in all_classes
+        }
+        
         # Get attendance records grouped by class and status
         stmt = (
             select(
@@ -131,47 +151,17 @@ def get_attendance_summary(
 
         result = session.exec(stmt).all()
         print(f"[attendance-summary] Found {len(result)} attendance records")
+        print(f"[attendance-summary] Total classes: {len(class_data)}")
 
-        if not result:
-            # Zero-fill all known classes with unmarked students
-            classes = session.exec(select(ClassNames)).all()
-            class_data = {
-                c.class_name_id: {
-                    "date": str(selected_date),
-                    "class_name": c.class_name,
-                    "attendance_values": {
-                        "present": 0,
-                        "absent": 0,
-                        "late": 0,
-                        "leave": 0,
-                        "unmarked": unmarked_count,
-                    }
-                }
-                for c in classes
-            }
-        else:
-            # Build class data from attendance records
-            class_data = {}
-            for class_id, class_name, value, count in result:
-                if class_id not in class_data:
-                    class_data[class_id] = {
-                        "date": str(selected_date),
-                        "class_name": class_name,
-                        "attendance_values": {
-                            "present": 0,
-                            "absent": 0,
-                            "late": 0,
-                            "leave": 0,
-                            "unmarked": 0,
-                        }
-                    }
-                norm_value = value.lower() if value else "unknown"
-                if norm_value in class_data[class_id]["attendance_values"]:
-                    class_data[class_id]["attendance_values"][norm_value] = count
-            
-            # Add unmarked count to each class
-            for class_id in class_data:
-                class_data[class_id]["attendance_values"]["unmarked"] = unmarked_count
+        # Populate with attendance records
+        for class_id, class_name, value, count in result:
+            norm_value = value.lower() if value else "unknown"
+            if norm_value in class_data[class_id]["attendance_values"]:
+                class_data[class_id]["attendance_values"][norm_value] = count
+        
+        # Add unmarked count to each class
+        for class_id in class_data:
+            class_data[class_id]["attendance_values"]["unmarked"] = unmarked_count
 
         summary = [AttendanceSummary(**data) for data in class_data.values()]
 

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Header } from "@/components/dashboard/Header";
 import { CardsSkeleton, ChartSkeleton, Skeleton } from "@/components/dashboard/Skeleton";
+import SalarySummarySection from "@/components/Salary/SalarySummarySection";
 import { motion } from "framer-motion";
 import { DashboardAPI } from "@/api/Dashboard/dashboardAPI";
 import {
@@ -1075,6 +1076,11 @@ export function AdminDashboard() {
               )}
             </div>
           </SectionCard>
+
+          {/* Salary Summary Section */}
+          <div className="mt-8">
+            <SalarySummarySection />
+          </div>
 
         </div>
       </main>

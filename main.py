@@ -29,6 +29,7 @@ from router.expense_cat_names import expense_cat_names_router
 from router.expense import expense_router
 from router.dashboard import dashboard_router
 from router.admin_create_user import admin_create_user_router
+from router.salary import salary_router
 
 # User related imports
 from user.user_router import public_router, user_router, admin_router
@@ -70,6 +71,7 @@ async def lifespan(app: FastAPI):
 
 origins = [
     "http://localhost:3000",  # Next.js development server
+    "http://127.0.0.1:3000",  # Localhost access with 127.0.0.1
     # "https://mzbs.vercel.app",  # Production frontend
     "https://mzbs.netlify.app"  # Netlify production frontend
 ]
@@ -137,6 +139,7 @@ app.include_router(dashboard_router, tags=["Dashboard"])
 app.include_router(expense_router)
 app.include_router(fee_router)
 app.include_router(income_router)
+app.include_router(salary_router)
 app.include_router(students_router)
 app.include_router(deleted_students_router)
 app.include_router(mark_attendance_router)

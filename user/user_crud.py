@@ -403,6 +403,10 @@ def require_admin_teacher_principal():
     """ADMIN, TEACHER, or PRINCIPAL can access"""
     return require_roles([UserRole.ADMIN, UserRole.TEACHER, UserRole.PRINCIPAL])
 
+def require_admin_teacher_principal_accountant():
+    """ADMIN, TEACHER, PRINCIPAL, or ACCOUNTANT can access"""
+    return require_roles([UserRole.ADMIN, UserRole.TEACHER, UserRole.PRINCIPAL, UserRole.ACCOUNTANT])
+
 def require_admin_accountant():
     """ADMIN or ACCOUNTANT can access"""
     return require_roles([UserRole.ADMIN, UserRole.ACCOUNTANT])

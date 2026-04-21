@@ -21,13 +21,15 @@ interface LoginResponse {
 }
   export async function LoginAPI(loginData: LoginData) {
     try {
-      const response = await axiosIntance.post<LoginResponse >(
+      const response = await axiosIntance.post<LoginResponse>(
         "/login",
         loginData,
         {
           headers: {
             "Content-Type": "application/json",
           },
+          withCredentials: true,
+          timeout: 10000,
         }
       );
 

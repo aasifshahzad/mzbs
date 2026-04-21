@@ -9,6 +9,7 @@ from schemas.attendance_model import (
     TeacherNames,
     Students,
     AttendanceValue,
+    AttendanceStatusSummary,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
@@ -18,9 +19,9 @@ from typing import Annotated, List, Optional
 from user.user_models import User, UserRole
 from user.user_crud import get_current_user
 from sqlalchemy.exc import IntegrityError
+from datetime import date, datetime
 
 from db import get_session
-from user.user_models import User
 
 mark_attendance_router = APIRouter(
     prefix="/mark_attendance",
@@ -122,11 +123,6 @@ def add_attendance(
         attendance_std_fname=db_attendance.attendance_student.father_name,
         attendance_value=db_attendance.attendance_value.attendance_value,
     )
-
-from datetime import date
-from fastapi import HTTPException
-
-from datetime import date
 
 @mark_attendance_router.post("/add_bulk_attendance/", response_model=dict)
 def add_bulk_attendance(
@@ -455,3 +451,78 @@ def get_filtered_attendance(
     ]
 
     return filtered_responses
+
+
+@mark_attendance_router.get("/attendance_status_summary", response_model=AttendanceStatusSummary)
+def get_attendance_status_summary(
+    student_id: int = Query(..., description="Student ID"),
+    from_date: Optional[str] = Query(None, description="From date (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(None, description="To date (YYYY-MM-DD)"),
+    session: Session = Depends(get_session),
+    current_user: Annotated[User, Depends(get_current_user)] = None,
+):
+    """Get attendance status summary for a student"""
+    try:
+        # Get student details
+        student = session.get(Students, student_id)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+
+        # Build query
+        query = select(Attendance).where(Attendance.student_id == student_id)
+
+        # Add date filters if provided
+        if from_date:
+            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
+            query = query.where(Attendance.attendance_date >= from_date_obj)
+        
+        if to_date:
+            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").date()
+            query = query.where(Attendance.attendance_date <= to_date_obj)
+
+        # Execute query
+        attendance_records = session.exec(query).all()
+
+        # Initialize counters
+        present_count = 0
+        absent_count = 0
+        late_count = 0
+        leave_count = 0
+
+        # Count attendance values
+        for record in attendance_records:
+            if record.attendance_value:
+                value = record.attendance_value.attendance_value.lower()
+                if value == "present":
+                    present_count += 1
+                elif value == "absent":
+                    absent_count += 1
+                elif value == "late":
+                    late_count += 1
+                elif value == "leave":
+                    leave_count += 1
+
+        total_count = present_count + absent_count + late_count + leave_count
+
+        # Get class name from student (it's a string field)
+        class_name = student.class_name if student.class_name else "N/A"
+
+        return AttendanceStatusSummary(
+            student_id=student.student_id,
+            student_name=student.student_name,
+            father_name=student.father_name,
+            class_name=class_name,
+            present=present_count,
+            absent=absent_count,
+            late=late_count,
+            leave=leave_count,
+            total=total_count,
+            date_range={
+                "from": from_date or "N/A",
+                "to": to_date or "N/A"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching attendance summary: {str(e)}")

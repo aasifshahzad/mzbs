@@ -90,3 +90,4 @@ class AttendanceStatusSummary(SQLModel):
     late: int
     leave: int
     total: int
+    date_range: dict
