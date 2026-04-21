@@ -73,7 +73,8 @@ origins = [
     "http://localhost:3000",  # Next.js development server
     "http://127.0.0.1:3000",  # Localhost access with 127.0.0.1
     # "https://mzbs.vercel.app",  # Production frontend
-    "https://mzbs.netlify.app"  # Netlify production frontend
+    "https://mzbs.netlify.app" , # Netlify production frontend
+    "https://mzbs-temp.vercel.app", # temporary deployment
 ]
 
 app = FastAPI(
