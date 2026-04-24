@@ -6,7 +6,7 @@ export const FeeAPI = {
   Create: async (AddFee: AddFeeModel) => {
     try {
       const response = await AxiosInstance.post<AddFeeModel>(
-        "/fee/add_fee/",
+        "/fee/add_fee",
         JSON.stringify(AddFee),
         {
           headers: {
