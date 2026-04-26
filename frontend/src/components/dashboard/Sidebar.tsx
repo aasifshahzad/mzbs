@@ -220,10 +220,16 @@ const menuList: MenuItem[] = [
         path: "/dashboard/setup/income_category",
       },
       {
-        id: 20,
+        id: 17,
         name: "Expense Category",
         icon: GoDotFill,
         path: "/dashboard/setup/expense_category",
+      },
+      {
+        id: 21,
+        name: "Manage User",
+        icon: GoDotFill,
+        path: "/dashboard/setup/manage_user",
       },
     ],
   },

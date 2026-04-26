@@ -38,6 +38,8 @@ class UserLogin(SQLModel):
 class UserUpdate(SQLModel):
     username: Optional[str] = None
     email: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[UserRole] = None
 
 class AdminUserUpdate(SQLModel):
     role: UserRole = Field(description="Must be one of: ADMIN, TEACHER, USER")

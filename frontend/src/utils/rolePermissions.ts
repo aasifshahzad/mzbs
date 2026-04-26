@@ -139,6 +139,11 @@ export function canAccessSubmenuItem(role: string | null, submenuPath: string): 
     return role === "ADMIN" || role === "PRINCIPAL";
   }
 
+  // Manage User: only ADMIN can access
+  if (submenuPath.includes("/setup/manage_user")) {
+    return role === "ADMIN";
+  }
+
   // TEACHER: can only access Mark Attendance and View Attendance submenu items
   if (role === "TEACHER") {
     return (

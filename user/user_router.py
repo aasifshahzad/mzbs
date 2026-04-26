@@ -282,7 +282,7 @@ from .user_crud import (
 )
 from .services import (
     verify_token, create_access_token, get_user_by_username,
-    revoke_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES
+    revoke_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_password_hash
 )
 from db import get_session
 from typing import Annotated, List
@@ -583,23 +583,80 @@ async def refresh_token(
         )
 
 # Admin routes - Only ADMIN can access these
-@admin_router.get("/", response_model=list[User])
+@admin_router.get("/", response_model=list[UserResponse])
 def read_users(
     db: Annotated[Session, Depends(get_session)],
     current_user: Annotated[User, Depends(require_admin())]  # Updated to new role checker
-) -> list[User]:
-    return db.exec(select(User)).all()
+) -> list[UserResponse]:
+    """Get all users (Admin only)"""
+    try:
+        users = db.exec(select(User)).all()
+        return [
+            UserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                role=user.role.value  # Convert enum to string
+            )
+            for user in users
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching users: {str(e)}"
+        )
 
-# Example of other admin routes you might have
+# Create new user (Admin only)
 @admin_router.post("/", response_model=UserResponse)
 def create_user(
     user_data: UserCreate,
     db: Annotated[Session, Depends(get_session)],
     current_user: Annotated[User, Depends(require_admin())]  # Only ADMIN
 ):
-    # User creation logic here
-    pass
+    """Create a new user (Admin only)"""
+    try:
+        # Check if user already exists
+        existing_user = db.exec(
+            select(User).where(
+                (User.username == user_data.username) |
+                (User.email == user_data.email)
+            )
+        ).first()
 
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username or email already exists"
+            )
+
+        # Create new user
+        new_user = User(
+            username=user_data.username,
+            email=user_data.email,
+            password=user_data.password,  # Password will be hashed in the model
+            role=UserRole(user_data.role.upper()) if isinstance(user_data.role, str) else user_data.role
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        return UserResponse(
+            id=new_user.id,
+            username=new_user.username,
+            email=new_user.email,
+            role=new_user.role.value
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating user: {str(e)}"
+        )
+
+# Update user (Admin only)
 @admin_router.put("/{user_id}", response_model=UserResponse)
 def update_user_admin(
     user_id: int,
@@ -607,17 +664,110 @@ def update_user_admin(
     db: Annotated[Session, Depends(get_session)],
     current_user: Annotated[User, Depends(require_admin())]  # Only ADMIN
 ):
-    # User update logic here
-    pass
+    """Update user information (Admin only)"""
+    try:
+        user = db.exec(select(User).where(User.id == user_id)).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
 
+        # Prevent admin from changing their own role through this endpoint
+        if user.username == current_user.username and user_data.role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot change your own role"
+            )
+
+        # Update fields if provided
+        if user_data.username:
+            # Check if new username is already taken
+            existing_user = db.exec(
+                select(User).where(
+                    (User.username == user_data.username) & (User.id != user_id)
+                )
+            ).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken"
+                )
+            user.username = user_data.username
+
+        if user_data.email:
+            # Check if new email is already taken
+            existing_user = db.exec(
+                select(User).where(
+                    (User.email == user_data.email) & (User.id != user_id)
+                )
+            ).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already taken"
+                )
+            user.email = user_data.email
+
+        if user_data.password:
+            user.password = get_password_hash(user_data.password)  # Hash the password
+
+        if user_data.role:
+            user.role = UserRole(user_data.role.upper()) if isinstance(user_data.role, str) else user_data.role
+
+        db.commit()
+        db.refresh(user)
+
+        return UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            role=user.role.value
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating user: {str(e)}"
+        )
+
+# Delete user (Admin only)
 @admin_router.delete("/{user_id}")
 def delete_user_admin(
     user_id: int,
     db: Annotated[Session, Depends(get_session)],
     current_user: Annotated[User, Depends(require_admin())]  # Only ADMIN
 ):
-    # User deletion logic here
-    pass
+    """Delete user (Admin only)"""
+    try:
+        user = db.exec(select(User).where(User.id == user_id)).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+
+        # Prevent admin from deleting themselves
+        if user.username == current_user.username:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot delete your own account"
+            )
+
+        db.delete(user)
+        db.commit()
+
+        return {"message": "User deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting user: {str(e)}"
+        )
 
 @admin_router.patch("/{username}/role", response_model=UserResponse)
 async def update_user_role(
