@@ -1,6 +1,6 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from typing import List, Annotated
 
 from db import get_session
@@ -340,6 +340,12 @@ def delete_teacher_salary(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Teacher salary record with ID {salary_id} not found"
             )
+
+        # Delete all salary-related records for this teacher to prevent orphan data
+        db.exec(delete(SalaryPayment).where(SalaryPayment.teacher_id == salary.teacher_id))
+        db.exec(delete(Allowance).where(Allowance.teacher_id == salary.teacher_id))
+        db.exec(delete(Deduction).where(Deduction.teacher_id == salary.teacher_id))
+        db.exec(delete(SalaryLedger).where(SalaryLedger.teacher_id == salary.teacher_id))
 
         db.delete(salary)
         db.commit()

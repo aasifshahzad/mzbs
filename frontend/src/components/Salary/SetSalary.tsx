@@ -156,13 +156,28 @@ const SetSalary = () => {
       return;
     }
 
+    if (!record?.id) {
+      toast.error("Invalid salary record selected for editing");
+      return;
+    }
+
     setIsEditing(true);
     setEditingId(record.id);
-    setValue("teacher_id", record.teacher_id.toString());
-    setValue("base_salary", record.base_salary.toString());
-    setValue("effective_from", record.effective_from);
+    setValue("teacher_id", record.teacher_id?.toString() ?? "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    setValue("base_salary", record.base_salary?.toString() ?? "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    setValue("effective_from", record.effective_from ?? "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
 
-    // Scroll to form
+    toast.success("Loaded salary record for editing");
+
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -172,7 +187,7 @@ const SetSalary = () => {
       return;
     }
 
-    if (window.confirm("Are you sure you want to delete this salary record?")) {
+    if (window.confirm("Are you sure you want to delete this salary record? This will permanently delete all related salary logs, payments, allowances, and deductions for this teacher.")) {
       try {
         setIsDeleting(true);
         await SalaryAPI.deleteTeacherSalary(id);
