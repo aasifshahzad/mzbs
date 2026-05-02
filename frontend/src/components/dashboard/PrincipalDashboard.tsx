@@ -49,6 +49,7 @@ interface AttendanceSummaryData {
   summary: {
     date: string;
     class_name: string;
+    total_students: number;
     attendance_values: {
       Present: number;
       Absent: number;

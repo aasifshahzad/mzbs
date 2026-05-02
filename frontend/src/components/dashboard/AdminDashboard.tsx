@@ -70,6 +70,7 @@ interface AttendanceSummaryData {
   summary: {
     date: string;
     class_name: string;
+    total_students: number;
     attendance_values: Record<string, number>;
   }[];
   graph: {
