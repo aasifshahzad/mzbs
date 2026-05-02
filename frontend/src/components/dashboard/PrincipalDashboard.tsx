@@ -450,7 +450,7 @@ export function PrincipalDashboard() {
                 <table className="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Class", "Present", "Absent", "Late", "Leave"].map((col) => (
+                      {["Class", "Total Students", "Present", "Absent", "Late", "Leave"].map((col) => (
                         <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           {col}
                         </th>
@@ -462,6 +462,9 @@ export function PrincipalDashboard() {
                       <tr key={i} className="hover:bg-gray-50 transition-colors duration-150">
                         <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">
                           {item.class_name}
+                        </td>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-700 whitespace-nowrap">
+                          {item.total_students || 0}
                         </td>
                         <td className="px-4 py-3 text-sm whitespace-nowrap">
                           <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800 font-medium">

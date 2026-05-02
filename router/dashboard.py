@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select, func
+from sqlalchemy import and_
 from datetime import datetime, date, timedelta
 from db import get_session
 from schemas.dashboard_model import (
@@ -124,6 +125,7 @@ def get_attendance_summary(
             c.class_name_id: {
                 "date": str(selected_date),
                 "class_name": c.class_name,
+                "total_students": 0,
                 "attendance_values": {
                     "present": 0,
                     "absent": 0,
@@ -135,16 +137,32 @@ def get_attendance_summary(
             for c in all_classes
         }
         
-        # Get attendance records grouped by class and status
+        # Get the latest attendance record per student/date/class using ROW_NUMBER()
+        latest_att = (
+            select(
+                Attendance.attendance_id,
+                func.row_number()
+                    .over(
+                        partition_by=[Attendance.student_id, Attendance.class_name_id, func.date(Attendance.attendance_date)],
+                        order_by=Attendance.attendance_id.desc()
+                    )
+                    .label("rn")
+            )
+            .where(func.date(Attendance.attendance_date) == selected_date)
+            .subquery()
+        )
+
+        # Get attendance records grouped by class and status (only latest per student/date/class)
         stmt = (
             select(
                 ClassNames.class_name_id,
                 ClassNames.class_name,
                 AttendanceValue.attendance_value,
-                func.count(Attendance.attendance_id).label("count")
+                func.count(func.distinct(Attendance.student_id)).label("count")
             )
             .join(ClassNames, Attendance.class_name_id == ClassNames.class_name_id)
             .join(AttendanceValue, Attendance.attendance_value_id == AttendanceValue.attendance_value_id)
+            .join(latest_att, and_(Attendance.attendance_id == latest_att.c.attendance_id, latest_att.c.rn == 1))
             .where(func.date(Attendance.attendance_date) == selected_date)
             .group_by(ClassNames.class_name_id, ClassNames.class_name, AttendanceValue.attendance_value)
         )
@@ -159,9 +177,31 @@ def get_attendance_summary(
             if norm_value in class_data[class_id]["attendance_values"]:
                 class_data[class_id]["attendance_values"][norm_value] = count
         
-        # Add unmarked count to each class
+        # Calculate unmarked count per class
+        # Get total students per class
+        class_student_counts = session.exec(
+            select(ClassNames.class_name_id, func.count(Students.student_id).label("total_students"))
+            .join(Students, ClassNames.class_name == Students.class_name)
+            .group_by(ClassNames.class_name_id)
+        ).all()
+        
+        # Get marked students per class for this date
+        class_marked_counts = session.exec(
+            select(Attendance.class_name_id, func.count(func.distinct(Attendance.student_id)).label("marked_students"))
+            .where(func.date(Attendance.attendance_date) == selected_date)
+            .group_by(Attendance.class_name_id)
+        ).all()
+        
+        # Create lookup dictionaries
+        class_total_lookup = {row.class_name_id: row.total_students for row in class_student_counts}
+        class_marked_lookup = {row.class_name_id: row.marked_students for row in class_marked_counts}
+        
+        # Calculate unmarked for each class and set total_students
         for class_id in class_data:
-            class_data[class_id]["attendance_values"]["unmarked"] = unmarked_count
+            total_in_class = class_total_lookup.get(class_id, 0)
+            marked_in_class = class_marked_lookup.get(class_id, 0)
+            class_data[class_id]["total_students"] = total_in_class
+            class_data[class_id]["attendance_values"]["unmarked"] = max(0, total_in_class - marked_in_class)
 
         summary = [AttendanceSummary(**data) for data in class_data.values()]
 
@@ -237,7 +277,7 @@ def get_student_summary(
 
         unmarked_count = max(0, total_students - marked_count)
 
-        # Per-status counts
+        # Per-status counts (using only latest attendance record per student/date)
         default_values = {
             "Present": 0,
             "Absent": 0,
@@ -246,12 +286,28 @@ def get_student_summary(
             "Unmarked": unmarked_count,
         }
 
+        # Get the latest attendance record per student/date using ROW_NUMBER()
+        latest_att_student = (
+            select(
+                Attendance.attendance_id,
+                func.row_number()
+                    .over(
+                        partition_by=[Attendance.student_id, func.date(Attendance.attendance_date)],
+                        order_by=Attendance.attendance_id.desc()
+                    )
+                    .label("rn")
+            )
+            .where(func.date(Attendance.attendance_date) == selected_date)
+            .subquery()
+        )
+
         attendance_counts = session.exec(
             select(
                 AttendanceValue.attendance_value,
-                func.count(Attendance.attendance_id).label("count")
+                func.count(func.distinct(Attendance.student_id)).label("count")
             )
             .join(Attendance, AttendanceValue.attendance_value_id == Attendance.attendance_value_id)
+            .join(latest_att_student, and_(Attendance.attendance_id == latest_att_student.c.attendance_id, latest_att_student.c.rn == 1))
             .where(func.date(Attendance.attendance_date) == selected_date)
             .group_by(AttendanceValue.attendance_value)
         ).all()

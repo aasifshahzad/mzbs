@@ -755,13 +755,13 @@ export function AdminDashboard() {
               )}
             </div>
 
-            {/* Detail Table — Admin includes Unmarked column */}
+            {/* Detail Table — Admin includes Total Students and Unmarked column */}
             {!attendanceSummaryLoading && !classError && attendanceSummaryData && attendanceSummaryData.summary.length > 0 && (
               <div className="mt-8 overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Class", "Present", "Absent", "Late", "Leave", "Unmarked"].map((col) => (
+                      {["Class", "Total Students", "Present", "Absent", "Late", "Leave", "Unmarked"].map((col) => (
                         <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           {col}
                         </th>
@@ -774,10 +774,12 @@ export function AdminDashboard() {
                       const absent  = getAttVal(item.attendance_values, "absent");
                       const late    = getAttVal(item.attendance_values, "late");
                       const leave   = getAttVal(item.attendance_values, "leave");
-                      const unmarked = Math.max(0, present + absent + late + leave);
+                      const unmarked = getAttVal(item.attendance_values, "unmarked");
+                      const totalStudents = item.total_students || 0;
                       return (
                         <tr key={i} className="hover:bg-gray-50 transition-colors duration-150">
                           <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">{item.class_name}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-gray-700 whitespace-nowrap">{totalStudents}</td>
                           <td className="px-4 py-3 text-sm whitespace-nowrap"><span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800 font-medium">{present}</span></td>
                           <td className="px-4 py-3 text-sm whitespace-nowrap"><span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800 font-medium">{absent}</span></td>
                           <td className="px-4 py-3 text-sm whitespace-nowrap"><span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 font-medium">{late}</span></td>
