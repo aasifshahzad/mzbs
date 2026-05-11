@@ -6,6 +6,7 @@ import { Header } from "@/components/dashboard/Header";
 import { DashboardAPI } from "@/api/Dashboard/dashboardAPI";
 import { CardsSkeleton, Skeleton } from "@/components/dashboard/Skeleton";
 import SalarySummarySection from "@/components/Salary/SalarySummarySection";
+import { RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line } from "recharts";
 
@@ -158,93 +159,73 @@ export function AccountantDashboard() {
     "December",
   ];
 
-  // Fetch Income Expense Summary
-  useEffect(() => {
+  // Fetch Income Expense Summary (exposed for manual refresh)
+  const fetchIncomeExpenseSummary = async (year: number = selectedYear) => {
     if (!role) return;
-    const fetchIncomeExpenseSummary = async () => {
-      setIncomeExpenseLoading(true);
-      try {
-        const response = (await DashboardAPI.GetIncomeExpenseSummary(
-          selectedYear
-        )) as ApiResponse<IncomeExpenseSummaryData>;
-        if (response && response.data) {
-          setIncomeExpenseSummaryData(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching income expense summary:", error);
-      } finally {
-        setIncomeExpenseLoading(false);
-      }
-    };
+    setIncomeExpenseLoading(true);
+    try {
+      const response = (await DashboardAPI.GetIncomeExpenseSummary(year)) as ApiResponse<IncomeExpenseSummaryData>;
+      if (response && response.data) setIncomeExpenseSummaryData(response.data);
+    } catch (error) {
+      console.error("Error fetching income expense summary:", error);
+      setIncomeExpenseSummaryData(null);
+    } finally {
+      setIncomeExpenseLoading(false);
+    }
+  };
 
-    fetchIncomeExpenseSummary();
-  }, [selectedYear, role]);
+  useEffect(() => { fetchIncomeExpenseSummary(selectedYear); }, [selectedYear, role]);
 
-  // Fetch Income Summary
-  useEffect(() => {
+  // Fetch Income Summary (exposed for manual refresh)
+  const fetchIncomeSummary = async (year: number = selectedYear, month: number | null = selectedMonth) => {
     if (!role) return;
-    const fetchIncomeSummary = async () => {
-      setIncomeSummaryLoading(true);
-      try {
-        const response = (await DashboardAPI.GetIncomeSummary(
-          selectedYear,
-          selectedMonth === null ? undefined : selectedMonth
-        )) as ApiResponse<IncomeSummaryData>;
-        if (response && response.data) {
-          setIncomeSummaryData(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching income summary:", error);
-      } finally {
-        setIncomeSummaryLoading(false);
-      }
-    };
+    setIncomeSummaryLoading(true);
+    try {
+      const response = (await DashboardAPI.GetIncomeSummary(year, month === null ? undefined : month)) as ApiResponse<IncomeSummaryData>;
+      if (response && response.data) setIncomeSummaryData(response.data);
+    } catch (error) {
+      console.error("Error fetching income summary:", error);
+      setIncomeSummaryData(null);
+    } finally {
+      setIncomeSummaryLoading(false);
+    }
+  };
 
-    fetchIncomeSummary();
-  }, [selectedYear, selectedMonth, role]);
+  useEffect(() => { fetchIncomeSummary(selectedYear, selectedMonth); }, [selectedYear, selectedMonth, role]);
 
-  // Fetch Expense Summary
-  useEffect(() => {
+  // Fetch Expense Summary (exposed for manual refresh)
+  const fetchExpenseSummary = async (year: number = selectedYear, month: number | null = selectedExpenseMonth) => {
     if (!role) return;
-    const fetchExpenseSummary = async () => {
-      setExpenseSummaryLoading(true);
-      try {
-        const response = (await DashboardAPI.GetExpenseSummary(
-          selectedYear,
-          selectedExpenseMonth === null ? undefined : selectedExpenseMonth
-        )) as ApiResponse<ExpenseSummaryData>;
-        if (response && response.data) {
-          setExpenseSummaryData(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching expense summary:", error);
-      } finally {
-        setExpenseSummaryLoading(false);
-      }
-    };
+    setExpenseSummaryLoading(true);
+    try {
+      const response = (await DashboardAPI.GetExpenseSummary(year, month === null ? undefined : month)) as ApiResponse<ExpenseSummaryData>;
+      if (response && response.data) setExpenseSummaryData(response.data);
+    } catch (error) {
+      console.error("Error fetching expense summary:", error);
+      setExpenseSummaryData(null);
+    } finally {
+      setExpenseSummaryLoading(false);
+    }
+  };
 
-    fetchExpenseSummary();
-  }, [selectedYear, selectedExpenseMonth, role]);
+  useEffect(() => { fetchExpenseSummary(selectedYear, selectedExpenseMonth); }, [selectedYear, selectedExpenseMonth, role]);
 
-  // Fetch Fee Summary
-  useEffect(() => {
+  // Fetch Fee Summary (exposed for manual refresh)
+  const fetchFeeSummary = async (year: number = selectedYear) => {
     if (!role) return;
-    const fetchFeeSummary = async () => {
-      setFeeSummaryLoading(true);
-      try {
-        const response = (await DashboardAPI.GetFeeSummary(selectedYear)) as ApiResponse<FeeSummaryData>;
-        if (response && response.data) {
-          setFeeSummaryData(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching fee summary:", error);
-      } finally {
-        setFeeSummaryLoading(false);
-      }
-    };
+    setFeeSummaryLoading(true);
+    try {
+      const response = (await DashboardAPI.GetFeeSummary(year)) as ApiResponse<FeeSummaryData>;
+      if (response && response.data) setFeeSummaryData(response.data);
+    } catch (error) {
+      console.error("Error fetching fee summary:", error);
+      setFeeSummaryData(null);
+    } finally {
+      setFeeSummaryLoading(false);
+    }
+  };
 
-    fetchFeeSummary();
-  }, [selectedYear, role]);
+  useEffect(() => { fetchFeeSummary(selectedYear); }, [selectedYear, role]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -284,6 +265,13 @@ export function AccountantDashboard() {
                   )}
                 </select>
               </div>
+              <button
+                onClick={() => fetchIncomeExpenseSummary(selectedYear)}
+                title="Refresh"
+                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Financial summary cards with improved styling */}
@@ -493,6 +481,13 @@ export function AccountantDashboard() {
                     ))}
                   </select>
                 </div>
+                <button
+                  onClick={() => fetchIncomeSummary(selectedYear, selectedMonth)}
+                  title="Refresh"
+                  className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -625,6 +620,13 @@ export function AccountantDashboard() {
                     ))}
                   </select>
                 </div>
+                <button
+                  onClick={() => fetchExpenseSummary(selectedYear, selectedExpenseMonth)}
+                  title="Refresh"
+                  className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -731,6 +733,13 @@ export function AccountantDashboard() {
                   )}
                 </select>
               </div>
+              <button
+                onClick={() => fetchFeeSummary(selectedYear)}
+                title="Refresh"
+                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Fee summary total */}

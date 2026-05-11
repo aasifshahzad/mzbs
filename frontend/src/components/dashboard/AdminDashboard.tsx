@@ -806,14 +806,23 @@ export function AdminDashboard() {
             <SectionHeader
               title={incomeExpenseData?.graph.title || "Financial Summary"}
               controls={
-                <YearMonthSelector
-                  yearId="fin-year"
-                  selectedYear={selectedYear}
-                  onYearChange={setSelectedYear}
-                  currentYear={currentYear}
-                  showMonth={false}
-                />
-              }
+                  <>
+                    <YearMonthSelector
+                      yearId="fin-year"
+                      selectedYear={selectedYear}
+                      onYearChange={setSelectedYear}
+                      currentYear={currentYear}
+                      showMonth={false}
+                    />
+                    <button
+                      onClick={() => fetchIncomeExpense(selectedYear)}
+                      title="Refresh"
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </>
+                }
             />
 
             {!incomeExpenseLoading && incomeExpenseData && (
@@ -893,13 +902,22 @@ export function AdminDashboard() {
             <SectionHeader
               title={incomeSummaryData?.graph.title || `Income Category Details for ${selectedYear}`}
               controls={
-                <YearMonthSelector
-                  yearId="income-year" monthId="income-month"
-                  selectedYear={selectedYear} selectedMonth={selectedIncomeMonth}
-                  onYearChange={setSelectedYear} onMonthChange={setSelectedIncomeMonth}
-                  currentYear={currentYear}
-                />
-              }
+                  <>
+                    <YearMonthSelector
+                      yearId="income-year" monthId="income-month"
+                      selectedYear={selectedYear} selectedMonth={selectedIncomeMonth}
+                      onYearChange={setSelectedYear} onMonthChange={setSelectedIncomeMonth}
+                      currentYear={currentYear}
+                    />
+                    <button
+                      onClick={() => fetchIncomeSummary(selectedYear, selectedIncomeMonth)}
+                      title="Refresh"
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </>
+                }
             />
 
             {!incomeSummaryLoading && incomeSummaryData && (
@@ -958,13 +976,22 @@ export function AdminDashboard() {
             <SectionHeader
               title={expenseSummaryData?.graph.title || `Expense Category Details for ${selectedYear}`}
               controls={
-                <YearMonthSelector
-                  yearId="expense-year" monthId="expense-month"
-                  selectedYear={selectedYear} selectedMonth={selectedExpenseMonth}
-                  onYearChange={setSelectedYear} onMonthChange={setSelectedExpenseMonth}
-                  currentYear={currentYear}
-                />
-              }
+                  <>
+                    <YearMonthSelector
+                      yearId="expense-year" monthId="expense-month"
+                      selectedYear={selectedYear} selectedMonth={selectedExpenseMonth}
+                      onYearChange={setSelectedYear} onMonthChange={setSelectedExpenseMonth}
+                      currentYear={currentYear}
+                    />
+                    <button
+                      onClick={() => fetchExpenseSummary(selectedYear, selectedExpenseMonth)}
+                      title="Refresh"
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </>
+                }
             />
 
             {!expenseSummaryLoading && expenseSummaryData && (
@@ -1023,14 +1050,23 @@ export function AdminDashboard() {
             <SectionHeader
               title={`Fee Collection Summary for ${selectedYear}`}
               controls={
-                <YearMonthSelector
-                  yearId="fee-year"
-                  selectedYear={selectedYear}
-                  onYearChange={setSelectedYear}
-                  currentYear={currentYear}
-                  showMonth={false}
-                />
-              }
+                  <>
+                    <YearMonthSelector
+                      yearId="fee-year"
+                      selectedYear={selectedYear}
+                      onYearChange={setSelectedYear}
+                      currentYear={currentYear}
+                      showMonth={false}
+                    />
+                    <button
+                      onClick={() => fetchFeeSummary(selectedYear)}
+                      title="Refresh"
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </>
+                }
             />
 
             {!feeSummaryLoading && feeSummaryData && (

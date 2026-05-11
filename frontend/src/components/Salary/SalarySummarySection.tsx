@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { SalaryAPI, SalaryLedgerResponse, TeacherSalaryResponse } from "@/api/Salary/SalaryAPI";
 import { CardsSkeleton } from "@/components/dashboard/Skeleton";
-import { Users, TrendingUp, AlertCircle, DollarSign } from "lucide-react";
+import { Users, TrendingUp, AlertCircle, DollarSign, RefreshCw } from "lucide-react";
 
 interface MonthlySalaryData {
   month: string;
@@ -254,32 +254,30 @@ const SalarySummarySection: React.FC = () => {
     });
   };
 
-  // Fetch salary data
-  useEffect(() => {
-    const fetchSalaryData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  // Fetch salary data (exposed so header button can refresh)
+  const fetchSalaryData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        // Fetch both teacher salaries and ledgers in parallel
-        const [teacherSalaries, ledgers] = await Promise.all([
-          SalaryAPI.getAllTeacherSalaries(),
-          SalaryAPI.getAllSalaryLedgers(),
-        ]);
+      const [teacherSalaries, ledgers] = await Promise.all([
+        SalaryAPI.getAllTeacherSalaries(),
+        SalaryAPI.getAllSalaryLedgers(),
+      ]);
 
-        setAllTeachers(teacherSalaries);
-        processSalaryData(teacherSalaries, ledgers);
-      } catch (error) {
-        console.error("Error fetching salary data:", error);
-        setError("Failed to load salary records");
-        setSalarySummary(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      setAllTeachers(teacherSalaries);
+      processSalaryData(teacherSalaries, ledgers);
+    } catch (error) {
+      console.error("Error fetching salary data:", error);
+      setError("Failed to load salary records");
+      setSalarySummary(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchSalaryData();
-  }, []);
+  // Initial load
+  useEffect(() => { fetchSalaryData(); }, []);
 
   // Reprocess when year changes
   useEffect(() => {
@@ -315,25 +313,34 @@ const SalarySummarySection: React.FC = () => {
       transition={{ duration: 0.5, delay: 0.6 }}
       className="bg-white p-6 rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow duration-300"
     >
-      {/* Header with title and year selector */}
+      {/* Header with title, year selector and refresh */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-gray-800">Salary Records & Summary</h2>
-        <div className="flex items-center bg-gray-100 p-2 rounded-lg">
-          <label htmlFor="salary-year-select" className="mr-2 text-sm font-medium text-gray-600">
-            Select Year:
-          </label>
-          <select
-            id="salary-year-select"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-gray-100 p-2 rounded-lg">
+            <label htmlFor="salary-year-select" className="mr-2 text-sm font-medium text-gray-600">
+              Select Year:
+            </label>
+            <select
+              id="salary-year-select"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            >
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={() => fetchSalaryData()}
+            title="Refresh"
+            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-500"
           >
-            {availableYears.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
+            <RefreshCw className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
