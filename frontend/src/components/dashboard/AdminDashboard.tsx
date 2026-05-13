@@ -70,6 +70,7 @@ interface AttendanceSummaryData {
   summary: {
     date: string;
     class_name: string;
+    attendance_time: string;
     total_students: number;
     attendance_values: Record<string, number>;
   }[];
@@ -358,6 +359,7 @@ export function AdminDashboard() {
   const [attendanceSummaryData, setAttendanceSummaryData] = useState<AttendanceSummaryData | null>(null);
   const [attendanceSummaryLoading, setAttendanceSummaryLoading] = useState(true);
   const [classError, setClassError] = useState(false);
+  const [selectedAttendanceTime, setSelectedAttendanceTime] = useState<string | null>(null);
 
   // ── Section: Financial (shared year) ──
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -484,6 +486,19 @@ export function AdminDashboard() {
   useEffect(() => { fetchExpenseSummary(selectedYear, selectedExpenseMonth); }, [selectedYear, selectedExpenseMonth, fetchExpenseSummary]);
   useEffect(() => { fetchFeeSummary(selectedYear); }, [selectedYear, fetchFeeSummary]);
 
+  // ── Extract available attendance times and set default ──
+  useEffect(() => {
+    if (attendanceSummaryData?.summary && attendanceSummaryData.summary.length > 0) {
+      const uniqueTimes = Array.from(
+        new Set(attendanceSummaryData.summary.map(item => item.attendance_time))
+      );
+      // Do NOT sort - backend already provides correct order
+      if (uniqueTimes.length > 0 && !selectedAttendanceTime) {
+        setSelectedAttendanceTime(uniqueTimes[0]); // Select first time from backend
+      }
+    }
+  }, [attendanceSummaryData, selectedAttendanceTime]);
+
   // ── Derived Data ──
   const transformedBarData =
     studentSummaryData?.graph.labels.map((label, i) => ({
@@ -494,6 +509,64 @@ export function AdminDashboard() {
 
   const total = studentSummaryData?.summary.total_students || 0;
   const pct = (n: number) => total > 0 ? `${((n / total) * 100).toFixed(1)}%` : "—";
+
+  // Extract available attendance times
+  const availableAttendanceTimes = attendanceSummaryData?.summary
+    ? Array.from(new Set(attendanceSummaryData.summary.map(item => item.attendance_time)))
+    : [];
+
+  // Filter attendance summary by selected time
+  const filteredAttendanceSummary = attendanceSummaryData?.summary
+    ? attendanceSummaryData.summary.filter(item => item.attendance_time === selectedAttendanceTime)
+    : [];
+
+  // Build filtered chart data for selected time only
+  const filteredChartData = filteredAttendanceSummary.length > 0
+    ? (() => {
+        // Group by class name
+        const classByName = new Map<string, typeof filteredAttendanceSummary[0]>();
+        filteredAttendanceSummary.forEach(item => {
+          if (!classByName.has(item.class_name)) {
+            classByName.set(item.class_name, item);
+          }
+        });
+
+        const sortedClasses = Array.from(classByName.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([name]) => name);
+
+        // Attendance types
+        const attendanceTypes = ["present", "absent", "late", "leave", "unmarked"];
+        const colors: Record<string, string> = {
+          "present": "rgba(75, 192, 192, 1)",
+          "absent": "rgba(255, 99, 132, 1)",
+          "late": "rgba(255, 206, 86, 1)",
+          "leave": "rgba(255, 159, 64, 1)",
+          "unmarked": "rgba(201, 203, 207, 1)",
+        };
+
+        // Build bar chart data structure
+        const barChartData = sortedClasses.map(className => {
+          const classData = classByName.get(className);
+          const point: { name: string; [key: string]: string | number } = { name: className };
+          if (classData) {
+            attendanceTypes.forEach(type => {
+              point[type] = classData.attendance_values[type] || 0;
+            });
+          }
+          return point;
+        });
+
+        // Build datasets
+        const datasets = attendanceTypes.map(type => ({
+          label: type.charAt(0).toUpperCase() + type.slice(1),
+          dataKey: type,
+          color: colors[type],
+        }));
+
+        return { data: barChartData, datasets, labels: sortedClasses };
+      })()
+    : { data: [], datasets: [], labels: [] };
 
   const userRolesBarData =
     userRolesData?.graph.labels.map((label, i) => ({
@@ -700,6 +773,21 @@ export function AdminDashboard() {
               controls={
                 <>
                   <DateSelector id="admin-class-date" value={classDate} onChange={setClassDate} />
+                  {availableAttendanceTimes.length > 0 && (
+                    <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg">
+                      <label htmlFor="admin-time-select" className="text-sm font-medium text-gray-600 whitespace-nowrap">Time:</label>
+                      <select
+                        id="admin-time-select"
+                        value={selectedAttendanceTime || ""}
+                        onChange={(e) => setSelectedAttendanceTime(e.target.value)}
+                        className="bg-white border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
+                      >
+                        {availableAttendanceTimes.map((time) => (
+                          <option key={time} value={time}>{time}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <button
                     onClick={() => fetchAttendanceSummary(classDate)}
                     title="Refresh"
@@ -716,24 +804,20 @@ export function AdminDashboard() {
                 <ChartSkeleton height="h-80" />
               ) : classError ? (
                 <EmptyState message="Failed to load data. Try refreshing." />
-              ) : !attendanceSummaryData || attendanceSummaryData.graph.labels.length === 0 ? (
-                <EmptyState message={`No class attendance data for ${formatDisplayDate(classDate)}`} />
+              ) : !attendanceSummaryData || filteredChartData.data.length === 0 ? (
+                <EmptyState message={`No class attendance data for ${formatDisplayDate(classDate)} at ${selectedAttendanceTime}`} />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={attendanceSummaryData.graph.labels.map((label, i) => {
-                      const point: { name: string; [key: string]: string | number } = { name: label };
-                      attendanceSummaryData.graph.datasets.forEach((ds) => { point[ds.label] = ds.data[i]; });
-                      return point;
-                    })}
+                    data={filteredChartData.data}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                     barSize={22}
                   >
                     <defs>
-                      {attendanceSummaryData.graph.datasets.map((ds, i) => (
+                      {filteredChartData.datasets.map((ds, i) => (
                         <linearGradient key={`grad-class-${i}`} id={`adminClassColor${i}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={ds.backgroundColor} stopOpacity={0.85} />
-                          <stop offset="95%" stopColor={ds.backgroundColor} stopOpacity={0.45} />
+                          <stop offset="5%" stopColor={ds.color} stopOpacity={0.85} />
+                          <stop offset="95%" stopColor={ds.color} stopOpacity={0.45} />
                         </linearGradient>
                       ))}
                     </defs>
@@ -742,13 +826,14 @@ export function AdminDashboard() {
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                     <Tooltip content={<AttendanceTooltip />} />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: 13 }} />
-                    {attendanceSummaryData.graph.datasets.map((ds, i) => (
+                    {filteredChartData.datasets.map((ds, i) => (
                       <Bar
                         key={ds.label}
-                        dataKey={ds.label}
+                        dataKey={ds.dataKey}
+                        name={ds.label}
                         stackId="a"
                         fill={`url(#adminClassColor${i})`}
-                        radius={i === attendanceSummaryData.graph.datasets.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                        radius={i === filteredChartData.datasets.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                       />
                     ))}
                   </BarChart>
@@ -757,12 +842,12 @@ export function AdminDashboard() {
             </div>
 
             {/* Detail Table — Admin includes Total Students and Unmarked column */}
-            {!attendanceSummaryLoading && !classError && attendanceSummaryData && attendanceSummaryData.summary.length > 0 && (
+            {!attendanceSummaryLoading && !classError && filteredAttendanceSummary.length > 0 && (
               <div className="mt-8 overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Class", "Total Students", "Present", "Absent", "Late", "Leave", "Unmarked"].map((col) => (
+                      {["Class", "Time", "Total Students", "Present", "Absent", "Late", "Leave", "Unmarked"].map((col) => (
                         <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           {col}
                         </th>
@@ -770,7 +855,7 @@ export function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                    {attendanceSummaryData.summary.map((item, i) => {
+                    {filteredAttendanceSummary.map((item, i) => {
                       const present = getAttVal(item.attendance_values, "present");
                       const absent  = getAttVal(item.attendance_values, "absent");
                       const late    = getAttVal(item.attendance_values, "late");
@@ -780,6 +865,7 @@ export function AdminDashboard() {
                       return (
                         <tr key={i} className="hover:bg-gray-50 transition-colors duration-150">
                           <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">{item.class_name}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-700 whitespace-nowrap">{item.attendance_time}</td>
                           <td className="px-4 py-3 text-sm font-semibold text-gray-700 whitespace-nowrap">{totalStudents}</td>
                           <td className="px-4 py-3 text-sm whitespace-nowrap"><span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800 font-medium">{present}</span></td>
                           <td className="px-4 py-3 text-sm whitespace-nowrap"><span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800 font-medium">{absent}</span></td>

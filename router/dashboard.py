@@ -11,6 +11,7 @@ from schemas.dashboard_model import (
 )
 from user.user_models import User
 from schemas.attendance_model import Attendance, AttendanceValue
+from schemas.attendance_time_model import AttendanceTime
 from schemas.students_model import Students
 from schemas.class_names_model import ClassNames
 from schemas.income_model import Income
@@ -98,7 +99,7 @@ def get_attendance_summary(
     date: date = Query(default=None),
     session: Session = Depends(get_session)
 ):
-    """Fetch class-wise attendance summary for a given date. Defaults to today."""
+    """Fetch class-wise attendance summary for a given date, including unmarked classes. Defaults to today."""
     try:
         # FIX 1: use `selected_date` consistently — `today` was never defined
         selected_date = date if date else datetime.now().date()
@@ -116,34 +117,62 @@ def get_attendance_summary(
         
         unmarked_count = max(0, total_students - marked_count)
 
-        # FIX: Always start with ALL classes to ensure all are shown
-        # Get all classes first
-        all_classes = session.exec(select(ClassNames)).all()
-        
-        # Initialize class_data with all classes
-        class_data = {
-            c.class_name_id: {
-                "date": str(selected_date),
-                "class_name": c.class_name,
-                "total_students": 0,
-                "attendance_values": {
-                    "present": 0,
-                    "absent": 0,
-                    "late": 0,
-                    "leave": 0,
-                    "unmarked": 0,
-                }
-            }
-            for c in all_classes
+        # Define attendance time order
+        TIME_ORDER = {
+            "پہلا وقت": 1,           # First time (default)
+            "دوسرا وقت": 2,          # Second time
+            "مغرب کے بعد": 3,        # After Maghrib
         }
         
-        # Get the latest attendance record per student/date/class using ROW_NUMBER()
+        def sort_time_key(time_str: str) -> tuple:
+            return (TIME_ORDER.get(time_str, 999), time_str)
+
+        # Get all classes
+        all_classes = session.exec(select(ClassNames)).all()
+        
+        # Get all attendance times that exist for the selected date
+        # If no times exist for the date, get all times in the system
+        times_on_date_stmt = (
+            select(AttendanceTime)
+            .join(Attendance, Attendance.attendance_time_id == AttendanceTime.attendance_time_id)
+            .where(func.date(Attendance.attendance_date) == selected_date)
+            .distinct()
+        )
+        times_on_date = session.exec(times_on_date_stmt).all()
+        
+        if times_on_date:
+            attendance_times = sorted(times_on_date, key=lambda t: sort_time_key(t.attendance_time))
+        else:
+            # If no times exist for this date, get all times in the system
+            all_times = session.exec(select(AttendanceTime)).all()
+            attendance_times = sorted(all_times, key=lambda t: sort_time_key(t.attendance_time))
+        
+        # Initialize class_data with ALL classes x ALL times combinations
+        class_data = {}
+        for class_obj in all_classes:
+            for time_obj in attendance_times:
+                key = (class_obj.class_name_id, time_obj.attendance_time)
+                class_data[key] = {
+                    "date": str(selected_date),
+                    "class_name": class_obj.class_name,
+                    "attendance_time": time_obj.attendance_time,
+                    "total_students": 0,
+                    "attendance_values": {
+                        "present": 0,
+                        "absent": 0,
+                        "late": 0,
+                        "leave": 0,
+                        "unmarked": 0,
+                    }
+                }
+        
+        # Get the latest attendance record per student/date/class/time using ROW_NUMBER()
         latest_att = (
             select(
                 Attendance.attendance_id,
                 func.row_number()
                     .over(
-                        partition_by=[Attendance.student_id, Attendance.class_name_id, func.date(Attendance.attendance_date)],
+                        partition_by=[Attendance.student_id, Attendance.class_name_id, Attendance.attendance_time_id, func.date(Attendance.attendance_date)],
                         order_by=Attendance.attendance_id.desc()
                     )
                     .label("rn")
@@ -152,56 +181,63 @@ def get_attendance_summary(
             .subquery()
         )
 
-        # Get attendance records grouped by class and status (only latest per student/date/class)
+        # Get attendance records grouped by class, time, and status (only latest per student/date/class/time)
         stmt = (
             select(
                 ClassNames.class_name_id,
                 ClassNames.class_name,
+                AttendanceTime.attendance_time,
                 AttendanceValue.attendance_value,
                 func.count(func.distinct(Attendance.student_id)).label("count")
             )
             .join(ClassNames, Attendance.class_name_id == ClassNames.class_name_id)
+            .join(AttendanceTime, Attendance.attendance_time_id == AttendanceTime.attendance_time_id)
             .join(AttendanceValue, Attendance.attendance_value_id == AttendanceValue.attendance_value_id)
             .join(latest_att, and_(Attendance.attendance_id == latest_att.c.attendance_id, latest_att.c.rn == 1))
             .where(func.date(Attendance.attendance_date) == selected_date)
-            .group_by(ClassNames.class_name_id, ClassNames.class_name, AttendanceValue.attendance_value)
+            .group_by(ClassNames.class_name_id, ClassNames.class_name, AttendanceTime.attendance_time, AttendanceValue.attendance_value)
         )
 
         result = session.exec(stmt).all()
         print(f"[attendance-summary] Found {len(result)} attendance records")
-        print(f"[attendance-summary] Total classes: {len(class_data)}")
+        print(f"[attendance-summary] Total class-time combinations: {len(class_data)}")
 
         # Populate with attendance records
-        for class_id, class_name, value, count in result:
+        for class_id, class_name, attendance_time, value, count in result:
             norm_value = value.lower() if value else "unknown"
-            if norm_value in class_data[class_id]["attendance_values"]:
-                class_data[class_id]["attendance_values"][norm_value] = count
+            key = (class_id, attendance_time)
+            if key in class_data and norm_value in class_data[key]["attendance_values"]:
+                class_data[key]["attendance_values"][norm_value] = count
         
-        # Calculate unmarked count per class
-        # Get total students per class
+        # Calculate total_students and unmarked count per class-time
+        # Get total students per class (not class-time, just class)
         class_student_counts = session.exec(
             select(ClassNames.class_name_id, func.count(Students.student_id).label("total_students"))
             .join(Students, ClassNames.class_name == Students.class_name)
             .group_by(ClassNames.class_name_id)
         ).all()
         
-        # Get marked students per class for this date
-        class_marked_counts = session.exec(
-            select(Attendance.class_name_id, func.count(func.distinct(Attendance.student_id)).label("marked_students"))
+        # Get marked students per class-time for this date
+        stmt_marked = (
+            select(Attendance.class_name_id, AttendanceTime.attendance_time, func.count(func.distinct(Attendance.student_id)).label("marked_students"))
+            .join(AttendanceTime, Attendance.attendance_time_id == AttendanceTime.attendance_time_id)
             .where(func.date(Attendance.attendance_date) == selected_date)
-            .group_by(Attendance.class_name_id)
-        ).all()
+            .group_by(Attendance.class_name_id, AttendanceTime.attendance_time)
+        )
+        class_time_marked_results = session.exec(stmt_marked).all()
         
         # Create lookup dictionaries
         class_total_lookup = {row.class_name_id: row.total_students for row in class_student_counts}
-        class_marked_lookup = {row.class_name_id: row.marked_students for row in class_marked_counts}
+        class_time_marked_lookup = {}
+        for class_id, attendance_time, marked_count in class_time_marked_results:
+            class_time_marked_lookup[(class_id, attendance_time)] = marked_count
         
-        # Calculate unmarked for each class and set total_students
-        for class_id in class_data:
+        # Calculate unmarked for each class-time and set total_students
+        for (class_id, attendance_time) in class_data:
             total_in_class = class_total_lookup.get(class_id, 0)
-            marked_in_class = class_marked_lookup.get(class_id, 0)
-            class_data[class_id]["total_students"] = total_in_class
-            class_data[class_id]["attendance_values"]["unmarked"] = max(0, total_in_class - marked_in_class)
+            marked_in_class_time = class_time_marked_lookup.get((class_id, attendance_time), 0)
+            class_data[(class_id, attendance_time)]["total_students"] = total_in_class
+            class_data[(class_id, attendance_time)]["attendance_values"]["unmarked"] = max(0, total_in_class - marked_in_class_time)
 
         summary = [AttendanceSummary(**data) for data in class_data.values()]
 
@@ -213,8 +249,8 @@ def get_attendance_summary(
             "unmarked": "rgba(201, 203, 207, 1)",
         }
 
-        # Sort by class_name_id for consistent ordering
-        sorted_class_ids = sorted(class_data.keys())
+        # Sort by class_name for chart display (aggregated across all times)
+        sorted_class_names = sorted(set(data["class_name"] for data in class_data.values()))
 
         # Collect all attendance types that actually appear
         attendance_types: set = set()
@@ -223,18 +259,24 @@ def get_attendance_summary(
 
         datasets = []
         for att_type in sorted(attendance_types):
+            data_values = []
+            for class_name in sorted_class_names:
+                # Sum all times for this class and attendance type
+                total_for_class = 0
+                for (cid, atime), cdata in class_data.items():
+                    if cdata["class_name"] == class_name:
+                        total_for_class += cdata["attendance_values"].get(att_type, 0)
+                data_values.append(float(total_for_class))
+            
             datasets.append(Dataset(
                 label=att_type.capitalize(),
-                data=[
-                    float(class_data[cid]["attendance_values"].get(att_type, 0))
-                    for cid in sorted_class_ids
-                ],
+                data=data_values,
                 backgroundColor=colors.get(att_type, "rgba(201, 203, 207, 1)")
             ))
 
         # FIX 2: removed `options={}` — GraphData now accepts it as Optional
         graph_data = GraphData(
-            labels=[class_data[cid]["class_name"] for cid in sorted_class_ids],
+            labels=sorted_class_names,
             datasets=datasets,
             title=f"Attendance Summary for {selected_date} (Total: {total_students})",
         )

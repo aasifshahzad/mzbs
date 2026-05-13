@@ -42,6 +42,7 @@ import {
   getPaginationRowModel,
   useReactTable,
   type ColumnDef,
+  type PaginationState,
 } from "@tanstack/react-table";
 
 import {
@@ -129,6 +130,10 @@ const AttendanceTable: React.FC = () => {
   const [studentsList, setStudentsList] = useState<SelectComponentOption[]>([]);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 15,
+  });
 
   const handleAttendanceUpdate = async () => {
     setFormRefresh((prev) => !prev);
@@ -372,6 +377,7 @@ const AttendanceTable: React.FC = () => {
 
   const HandleSubmitForStudentGet = async (formData: FilteredAttendance) => {
     setAttendanceRecords([]);
+    setPagination({ pageIndex: 0, pageSize: 15 }); // Reset pagination when fetching new records
     try {
       setIsLoading(true);
       const filter: FilteredAttendance = {
@@ -445,9 +451,10 @@ const AttendanceTable: React.FC = () => {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      pagination: { pageSize: 15, pageIndex: 0 },
+    state: {
+      pagination,
     },
+    onPaginationChange: setPagination,
   });
 
   return (
@@ -791,6 +798,7 @@ const AttendanceTable: React.FC = () => {
                     </div>
                     <div className="flex space-x-1 sm:space-x-2 order-1 sm:order-2">
                       <Button
+                        type="button"
                         variant="outline"
                         size="sm"
                         className="h-8 w-8 sm:h-9 sm:w-9 p-0"
@@ -800,6 +808,7 @@ const AttendanceTable: React.FC = () => {
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
                       <Button
+                        type="button"
                         variant="outline"
                         size="sm"
                         className="h-8 w-8 sm:h-9 sm:w-9 p-0"
