@@ -38,6 +38,7 @@ interface FeeData {
   fee_month: string;
   fee_year: number;
   fee_status: string;
+  is_deleted?: boolean;
 }
 
 const ViewFees: React.FC = () => {
@@ -163,7 +164,7 @@ const filteredFeesData = feesData.filter((fee) => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-3">
         <form
           onSubmit={handleSubmit(handleGetFees)}
-          className="flex flex-col gap-3 sm:gap-4 p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 lg:items-end gap-3 sm:gap-4 p-3 sm:p-4"
         >
           <div className="col-span-1">
             <label className="text-sm text-gray-700 dark:text-gray-300 font-bold">
@@ -286,13 +287,28 @@ const filteredFeesData = feesData.filter((fee) => {
                 <TableBody>
                   {filteredFeesData.length > 0 ? (
                     filteredFeesData.map((fee) => (
-                      <TableRow key={fee.fee_id}>
-                        <TableCell>{fee.student_name}</TableCell>
-                        <TableCell>{fee.father_name}</TableCell>
-                        <TableCell>{fee.class_name}</TableCell>
-                        <TableCell>{fee.fee_amount}</TableCell>
-                        <TableCell>{fee.fee_month}</TableCell>
-                        <TableCell>{fee.fee_year}</TableCell>
+                      <TableRow 
+                        key={fee.fee_id} 
+                        className={fee.is_deleted ? "bg-gray-100 dark:bg-gray-800 opacity-60" : ""}
+                      >
+                        <TableCell className={fee.is_deleted ? "text-gray-500 dark:text-gray-400" : ""}>
+                          {fee.student_name}
+                        </TableCell>
+                        <TableCell className={fee.is_deleted ? "text-gray-500 dark:text-gray-400" : ""}>
+                          {fee.father_name}
+                        </TableCell>
+                        <TableCell className={fee.is_deleted ? "text-gray-500 dark:text-gray-400" : ""}>
+                          {fee.class_name}
+                        </TableCell>
+                        <TableCell className={fee.is_deleted ? "text-gray-500 dark:text-gray-400" : ""}>
+                          {fee.fee_amount}
+                        </TableCell>
+                        <TableCell className={fee.is_deleted ? "text-gray-500 dark:text-gray-400" : ""}>
+                          {fee.fee_month}
+                        </TableCell>
+                        <TableCell className={fee.is_deleted ? "text-gray-500 dark:text-gray-400" : ""}>
+                          {fee.fee_year}
+                        </TableCell>
                         <TableCell>
                           <span className={`px-2 py-1 rounded-full text-xs ${
                             fee.fee_status === "Paid" 

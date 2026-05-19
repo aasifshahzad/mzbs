@@ -83,6 +83,7 @@ class FilterPaidUnpaid(SQLModel):
     fee_month: str
     fee_year: str
     fee_amount: Decimal
+    is_deleted: bool = False  # Flag to indicate if student is deleted (for UI styling)
 
     @field_serializer('fee_amount')
     def serialize_fee_amount(self, value: Decimal) -> int:

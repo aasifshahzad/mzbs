@@ -296,7 +296,7 @@ export function PrincipalDashboard() {
           const point: { name: string; [key: string]: string | number } = { name: className };
           if (classData) {
             attendanceTypes.forEach(type => {
-              point[type] = classData.attendance_values[type] || 0;
+              point[type] = classData.attendance_values[type as 'Present' | 'Absent' | 'Late' | 'Leave'] || 0;
             });
           }
           return point;

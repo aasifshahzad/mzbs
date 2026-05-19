@@ -29,6 +29,11 @@ interface SalarySummary {
   monthlyData: MonthlySalaryData[];
 }
 
+interface MonthRange {
+  startMonth: number;
+  endMonth: number;
+}
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -58,13 +63,52 @@ const SalarySummarySection: React.FC = () => {
     "July", "August", "September", "October", "November", "December"
   ];
 
+  const currentMonth = new Date().getMonth() + 1;
+
   // Get days in month
   const getDaysInMonth = (year: number, month: number): number => {
     return new Date(year, month, 0).getDate();
   };
 
-  // Calculate Total Payable using Actual Days Method
-  const calculateTotalPayable = (baseSalary: number, effectiveDate: string, year: number): number => {
+  const getVisibleMonthRange = (
+    effectiveDate: string,
+    year: number,
+    maxMonth: number
+  ): MonthRange | null => {
+    if (!effectiveDate) {
+      return null;
+    }
+
+    const startDate = new Date(effectiveDate);
+    if (isNaN(startDate.getTime())) {
+      return null;
+    }
+
+    const effectiveYear = startDate.getFullYear();
+    const effectiveMonth = startDate.getMonth() + 1;
+
+    if (year < effectiveYear) {
+      return null;
+    }
+
+    const startMonth = year === effectiveYear ? effectiveMonth : 1;
+    if (startMonth > maxMonth) {
+      return null;
+    }
+
+    return {
+      startMonth,
+      endMonth: maxMonth,
+    };
+  };
+
+  const calculateMonthlyPayable = (
+    baseSalary: number,
+    effectiveDate: string,
+    year: number,
+    month: number,
+    maxMonth: number
+  ): number => {
     baseSalary = Number(baseSalary) || 0;
     if (baseSalary <= 0 || !effectiveDate) {
       return 0;
@@ -72,50 +116,60 @@ const SalarySummarySection: React.FC = () => {
 
     try {
       const startDate = new Date(effectiveDate);
-      const endDate = new Date(year, 11, 31); // End of selected year
-      
       if (isNaN(startDate.getTime())) {
         return 0;
       }
-      
-      // Ensure start date is not after end date
-      if (startDate > endDate) {
+
+      const visibleRange = getVisibleMonthRange(effectiveDate, year, maxMonth);
+      if (!visibleRange || month < visibleRange.startMonth || month > visibleRange.endMonth) {
         return 0;
       }
 
-      let totalPayable = 0;
-      let currentDate = new Date(startDate);
+      const workedDaysStart = month === visibleRange.startMonth && year === startDate.getFullYear()
+        ? Math.max(1, startDate.getDate())
+        : 1;
+      const workedDaysEnd = getDaysInMonth(year, month);
+      const workedDaysInMonth = workedDaysEnd - workedDaysStart + 1;
+      const perDaySalary = baseSalary / workedDaysEnd;
 
-      while (currentDate <= endDate) {
-        const curYear = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1; // 1-12
-        
-        const firstDayOfMonth = new Date(curYear, month - 1, 1);
-        const lastDayOfMonth = new Date(curYear, month, 0);
-
-        let workedDaysStart = currentDate > firstDayOfMonth ? currentDate.getDate() : 1;
-        let workedDaysEnd = endDate.getFullYear() === curYear && endDate.getMonth() + 1 === month 
-          ? endDate.getDate() 
-          : lastDayOfMonth.getDate();
-
-        workedDaysStart = Math.max(1, workedDaysStart);
-        workedDaysEnd = Math.min(lastDayOfMonth.getDate(), workedDaysEnd);
-
-        const workedDaysInMonth = workedDaysEnd - workedDaysStart + 1;
-        const daysInMonth = getDaysInMonth(curYear, month);
-        const perDaySalary = baseSalary / daysInMonth;
-        const monthlyPayable = perDaySalary * workedDaysInMonth;
-
-        totalPayable += monthlyPayable;
-
-        currentDate = new Date(curYear, month, 1);
-      }
-
-      return Math.round(totalPayable * 100) / 100;
+      return Math.round((perDaySalary * workedDaysInMonth) * 100) / 100;
     } catch (error) {
-      console.error("Error calculating total payable:", error);
+      console.error("Error calculating monthly payable:", error);
       return 0;
     }
+  };
+
+  // Calculate Total Payable using Actual Days Method
+  const calculateTotalPayable = (baseSalary: number, effectiveDate: string, year: number, maxMonth: number): number => {
+    const visibleRange = getVisibleMonthRange(effectiveDate, year, maxMonth);
+    if (!visibleRange) {
+      return 0;
+    }
+
+    let totalPayable = 0;
+    for (let month = visibleRange.startMonth; month <= visibleRange.endMonth; month += 1) {
+      totalPayable += calculateMonthlyPayable(baseSalary, effectiveDate, year, month, maxMonth);
+    }
+
+    return Math.round(totalPayable * 100) / 100;
+  };
+
+  const getChartStartMonth = (teachers: TeacherSalaryResponse[], year: number, maxMonth: number): number => {
+    const effectiveMonths = teachers
+      .map((teacher) => {
+        const date = new Date(teacher.effective_from);
+        if (isNaN(date.getTime()) || date.getFullYear() !== year) {
+          return null;
+        }
+        return date.getMonth() + 1;
+      })
+      .filter((month): month is number => month !== null);
+
+    if (effectiveMonths.length === 0) {
+      return 1;
+    }
+
+    return Math.min(Math.min(...effectiveMonths), maxMonth);
   };
 
   // Process salary data using LEFT JOIN pattern
@@ -150,6 +204,10 @@ const SalarySummarySection: React.FC = () => {
     // STEP 2: Merge ledger data (LEFT JOIN with ledger table)
     // ============================================================
     ledgers.forEach((ledger: SalaryLedgerResponse) => {
+      if (ledger.year !== selectedYear) {
+        return;
+      }
+
       if (!aggregatedData.has(ledger.teacher_id)) {
         aggregatedData.set(ledger.teacher_id, {
           teacherName: ledger.teacher_name || "Unknown",
@@ -183,29 +241,32 @@ const SalarySummarySection: React.FC = () => {
     let totalRemaining = 0;
 
     const monthlyMap = new Map<number, { payable: number; allowance: number; deduction: number; netSalary: number; paid: number; remaining: number }>();
+    const maxMonth = selectedYear === currentYear ? currentMonth : 12;
+    const chartStartMonth = getChartStartMonth(teachers, selectedYear, maxMonth);
+    let hasVisibleData = false;
 
     aggregatedData.forEach((data) => {
       const baseSalary = data.baseSalary || 0;
       totalBaseSalary += baseSalary;
 
+      const visibleRange = getVisibleMonthRange(data.effectiveDate, selectedYear, maxMonth);
+      if (!visibleRange) {
+        return;
+      }
+
+      hasVisibleData = true;
+
       // Calculate total payable for selected year
-      const yearPayable = calculateTotalPayable(baseSalary, data.effectiveDate, selectedYear);
+      const yearPayable = calculateTotalPayable(baseSalary, data.effectiveDate, selectedYear, maxMonth);
       totalPayable += yearPayable;
 
       // Calculate monthly payables for the selected year
-      for (let month = 1; month <= 12; month++) {
-        const monthStart = new Date(selectedYear, month - 1, 1);
-        const monthEnd = new Date(selectedYear, month, 0);
-        
-        // Calculate payable for this specific month
-        const monthPayable = calculateTotalPayable(baseSalary, data.effectiveDate, selectedYear);
-        // For accurate month-by-month, we'd need more complex logic, but this gives yearly split
-        const monthShare = monthPayable / 12;
-
+      for (let month = visibleRange.startMonth; month <= visibleRange.endMonth; month += 1) {
+        const monthPayable = calculateMonthlyPayable(baseSalary, data.effectiveDate, selectedYear, month, maxMonth);
         const allowance = data.monthlyAllowances.get(month) || 0;
         const deduction = data.monthlyDeductions.get(month) || 0;
         const paid = data.monthlyPaid.get(month) || 0;
-        const netSalary = monthShare + allowance - deduction;
+        const netSalary = monthPayable + allowance - deduction;
         const remaining = netSalary - paid;
 
         totalAllowance += allowance;
@@ -216,7 +277,7 @@ const SalarySummarySection: React.FC = () => {
 
         const existing = monthlyMap.get(month) || { payable: 0, allowance: 0, deduction: 0, netSalary: 0, paid: 0, remaining: 0 };
         monthlyMap.set(month, {
-          payable: existing.payable + monthShare,
+          payable: existing.payable + monthPayable,
           allowance: existing.allowance + allowance,
           deduction: existing.deduction + deduction,
           netSalary: existing.netSalary + netSalary,
@@ -226,9 +287,9 @@ const SalarySummarySection: React.FC = () => {
       }
     });
 
-    // Convert to array
     const monthlyData: MonthlySalaryData[] = [];
-    for (let month = 1; month <= 12; month++) {
+    const startMonth = hasVisibleData ? chartStartMonth : 1;
+    for (let month = startMonth; month <= maxMonth; month += 1) {
       const data = monthlyMap.get(month) || { payable: 0, allowance: 0, deduction: 0, netSalary: 0, paid: 0, remaining: 0 };
       monthlyData.push({
         month: monthNames[month - 1].slice(0, 3),

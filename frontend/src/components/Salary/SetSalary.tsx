@@ -333,6 +333,12 @@ const SetSalary = () => {
             </button>
           </div>
 
+          {/* Info banner about salary history */}
+          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-800 dark:text-blue-300">
+            <p className="font-medium">💡 Salary History:</p>
+            <p>Each teacher can have multiple salary records with different effective dates. When salary increases, simply add a new record with the new amount and the date it becomes effective. All historical records are preserved for audit purposes.</p>
+          </div>
+
           {isFetchingRecords ? (
             <div className="text-center py-8 text-gray-600 dark:text-gray-400">
               Loading salary records...

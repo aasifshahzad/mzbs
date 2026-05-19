@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select, delete
 from typing import List, Annotated
@@ -43,17 +43,23 @@ def ensure_salary_ledger_exists(
     if existing_ledger:
         return existing_ledger
 
-    # Get teacher's current base salary
+    # Get the APPLICABLE base salary for this month
+    # Find the salary record with maximum effective_from date <= first day of this month
+    first_day_of_month = date(year, month, 1).isoformat()
+    
     teacher_salary = db.exec(
         select(TeacherSalary)
-        .where(TeacherSalary.teacher_id == teacher_id)
+        .where(
+            TeacherSalary.teacher_id == teacher_id,
+            TeacherSalary.effective_from <= first_day_of_month
+        )
         .order_by(TeacherSalary.effective_from.desc())
     ).first()
 
     if not teacher_salary:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No base salary configured for teacher ID {teacher_id}"
+            detail=f"No base salary configured for teacher ID {teacher_id} before {first_day_of_month}"
         )
 
     # Create new ledger entry
