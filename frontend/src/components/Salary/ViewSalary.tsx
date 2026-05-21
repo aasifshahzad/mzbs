@@ -5,9 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Header } from "@/components/dashboard/Header";
 import { toast } from "sonner";
-import { Search, Printer, Eye, RefreshCw, X } from "lucide-react";
-import { SalaryAPI, SalaryLedgerResponse, TeacherSalaryResponse } from "@/api/Salary/SalaryAPI";
+import { Search, Printer, RefreshCw, ChevronDown, ChevronRight, Eye, X } from "lucide-react";
+import {
+  SalaryAPI,
+  TeacherSalarySummary as ApiTeacherSalarySummary,
+  TeacherSalaryResponse,
+  SalaryPeriod
+} from "@/api/Salary/SalaryAPI";
 
+// Local interface for display purposes (extends API interface)
 interface TeacherSalarySummary {
   teacherId: number;
   teacherName: string;
@@ -29,13 +35,9 @@ const ViewSalary = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedSummary, setSelectedSummary] = useState<TeacherSalarySummary | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [salaryHistory, setSalaryHistory] = useState<TeacherSalaryResponse[]>([]);
+  const [salaryHistory, setSalaryHistory] = useState<SalaryPeriod[]>([]);
   const [isLoadingSalaryHistory, setIsLoadingSalaryHistory] = useState(false);
-
-  // Get number of days in a given month
-  const getDaysInMonth = (year: number, month: number): number => {
-    return new Date(year, month, 0).getDate();
-  };
+  const [expandedTeachers, setExpandedTeachers] = useState<Set<number>>(new Set());
 
   // Format date from YYYY-MM-DD to DD-MM-YY
   const formatDateToDDMMYY = (dateString: string): string => {
@@ -50,145 +52,70 @@ const ViewSalary = () => {
     return `${day}-${month}-${year}`;
   };
 
-  // Calculate Total Payable using Actual Days Method
-  const calculateTotalPayable = (baseSalary: number, effectiveDate: string): number => {
-    baseSalary = Number(baseSalary) || 0;
-    if (baseSalary <= 0 || !effectiveDate) {
-      return 0;
-    }
 
-    try {
-      const startDate = new Date(effectiveDate);
-      const endDate = new Date();
-      
-      if (isNaN(startDate.getTime())) {
-        return 0;
-      }
-      
-      let totalPayable = 0;
-
-      if (startDate > endDate) {
-        return 0;
-      }
-
-      let currentDate = new Date(startDate);
-
-      while (currentDate < endDate) {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1;
-        
-        const firstDayOfMonth = new Date(year, month - 1, 1);
-        const lastDayOfMonth = new Date(year, month, 0);
-
-        let workedDaysStart = currentDate > firstDayOfMonth ? currentDate.getDate() : 1;
-        let workedDaysEnd = endDate.getFullYear() === year && endDate.getMonth() + 1 === month 
-          ? endDate.getDate() 
-          : lastDayOfMonth.getDate();
-
-        workedDaysStart = Math.max(1, workedDaysStart);
-        workedDaysEnd = Math.min(lastDayOfMonth.getDate(), workedDaysEnd);
-
-        const workedDaysInMonth = workedDaysEnd - workedDaysStart + 1;
-        const daysInMonth = getDaysInMonth(year, month);
-        const perDaySalary = baseSalary / daysInMonth;
-        const monthlyPayable = perDaySalary * workedDaysInMonth;
-
-        totalPayable += monthlyPayable;
-
-        currentDate = new Date(year, month, 1);
-      }
-
-      return Math.round(totalPayable * 100) / 100;
-    } catch (error) {
-      console.error("Error calculating total payable:", error);
-      return 0;
-    }
-  };
-
-  // Fetch and aggregate salary data
+  // Fetch and aggregate salary data using new API endpoint
   const fetchSalaryData = useCallback(async () => {
     try {
       setIsLoading(true);
 
-      const [teacherSalaries, ledgers] = await Promise.all([
-        SalaryAPI.getAllTeacherSalaries(),
-        SalaryAPI.getAllSalaryLedgers(),
-      ]);
-
+      // Get all teachers with salaries
+      const teacherSalaries = await SalaryAPI.getAllTeacherSalaries();
       console.log("Teachers with salary records:", teacherSalaries.length);
-      console.log("Salary ledger entries:", ledgers.length);
 
-      // STEP 1: Create aggregated data using LEFT JOIN pattern
-      // Use Teacher/Salary table as PRIMARY SOURCE
-      const aggregatedData = new Map<number, {
-        teacherName: string;
-        baseSalary: number;
-        effectiveDate: string;
-        totalAllowance: number;
-        totalDeduction: number;
-        totalPaid: number;
-      }>();
-
-      // STEP 1a: Initialize with ALL teachers from salary records
-      teacherSalaries.forEach((salary) => {
-        aggregatedData.set(salary.teacher_id, {
-          teacherName: salary.teacher_name || "Unknown",
-          baseSalary: Number(salary.base_salary) || 0,
-          effectiveDate: salary.effective_from || new Date().toISOString(),
-          totalAllowance: 0,
-          totalDeduction: 0,
-          totalPaid: 0,
-        });
-      });
-
-      console.log("Teachers initialized in aggregated data:", aggregatedData.size);
-
-      // STEP 1b: Merge ledger data (LEFT JOIN with ledger table)
-      ledgers.forEach((ledger: SalaryLedgerResponse) => {
-        if (!aggregatedData.has(ledger.teacher_id)) {
-          aggregatedData.set(ledger.teacher_id, {
-            teacherName: ledger.teacher_name || "Unknown",
-            baseSalary: Number(ledger.base_salary) || 0,
-            effectiveDate: new Date().toISOString(),
-            totalAllowance: 0,
-            totalDeduction: 0,
-            totalPaid: 0,
-          });
-        }
-
-        const existing = aggregatedData.get(ledger.teacher_id)!;
-        existing.totalAllowance += (Number(ledger.allowance_total) || 0);
-        existing.totalDeduction += (Number(ledger.deduction_total) || 0);
-        existing.totalPaid += (Number(ledger.total_paid) || 0);
-      });
-
-      console.log("Final teacher count after ledger merge:", aggregatedData.size);
-
-      // STEP 2: Convert aggregated data to TeacherSalarySummary objects
-      const summaryList: TeacherSalarySummary[] = Array.from(aggregatedData.entries()).map(
-        ([teacherId, data]) => {
-          const totalPayable = calculateTotalPayable(data.baseSalary, data.effectiveDate);
-          const netSalary = (totalPayable || 0) + (data.totalAllowance || 0) - (data.totalDeduction || 0);
-          const remainingBalance = (netSalary || 0) - (data.totalPaid || 0);
-
-          return {
-            teacherId,
-            teacherName: data.teacherName,
-            baseSalary: data.baseSalary,
-            effectiveDate: formatDateToDDMMYY(data.effectiveDate),
-            totalPayable: isNaN(totalPayable) ? 0 : totalPayable,
-            totalAllowance: data.totalAllowance,
-            totalDeduction: data.totalDeduction,
-            netSalary: isNaN(netSalary) ? 0 : netSalary,
-            totalPaid: data.totalPaid,
-            remainingBalance: isNaN(remainingBalance) ? 0 : remainingBalance,
-          };
-        }
+      // Get unique teacher IDs
+      const uniqueTeacherIds = Array.from(
+        new Set(teacherSalaries.map(s => s.teacher_id))
       );
+
+      console.log("Unique teacher IDs:", uniqueTeacherIds);
+
+      // Fetch summary for each teacher using the new endpoint
+      const summaryPromises = uniqueTeacherIds.map(async (teacherId) => {
+        try {
+          console.log(`Fetching summary for teacher ${teacherId}...`);
+          const apiSummary = await SalaryAPI.getTeacherSalarySummary(teacherId);
+          console.log(`Summary for teacher ${teacherId}:`, apiSummary);
+          
+          return {
+            teacherId: apiSummary.teacher_id,
+            teacherName: apiSummary.teacher_name,
+            baseSalary: apiSummary.current_base_salary,
+            effectiveDate: formatDateToDDMMYY(apiSummary.latest_effective_from),
+            totalPayable: apiSummary.total_payable,
+            totalAllowance: apiSummary.total_allowance,
+            totalDeduction: apiSummary.total_deduction,
+            netSalary: apiSummary.total_net_salary,
+            totalPaid: apiSummary.total_paid,
+            remainingBalance: apiSummary.remaining,
+          };
+        } catch (error) {
+          console.error(`Error fetching summary for teacher ${teacherId}:`, error);
+          // Return a basic summary even if the API call fails
+          const teacherSalary = teacherSalaries.find(s => s.teacher_id === teacherId);
+          if (teacherSalary) {
+            return {
+              teacherId: teacherSalary.teacher_id,
+              teacherName: teacherSalary.teacher_name || "Unknown",
+              baseSalary: Number(teacherSalary.base_salary) || 0,
+              effectiveDate: formatDateToDDMMYY(teacherSalary.effective_from),
+              totalPayable: 0,
+              totalAllowance: 0,
+              totalDeduction: 0,
+              netSalary: 0,
+              totalPaid: 0,
+              remainingBalance: 0,
+            };
+          }
+          return null;
+        }
+      });
+
+      const summaryResults = await Promise.all(summaryPromises);
+      const summaryList = summaryResults.filter((s): s is TeacherSalarySummary => s !== null);
 
       summaryList.sort((a, b) => a.teacherName.localeCompare(b.teacherName));
 
-      console.log("Final summary list:", summaryList.length);
+      console.log("Final summary list:", summaryList.length, summaryList);
 
       setSummaries(summaryList);
       setFilteredSummaries(summaryList);
@@ -223,7 +150,7 @@ const ViewSalary = () => {
 
   // Filter summaries based on search
   useEffect(() => {
-    let filtered = summaries.filter((summary) =>
+    const filtered = summaries.filter((summary) =>
       (summary.teacherName || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -306,11 +233,11 @@ const ViewSalary = () => {
         <tr>
           <td>${index + 1}</td>
           <td>Rs. ${Math.round(record.base_salary).toLocaleString("en-US")}</td>
-          <td>${record.effective_from ? new Date(record.effective_from).toLocaleDateString("en-GB", { 
-            day: "2-digit", 
-            month: "2-digit", 
-            year: "2-digit" 
-          }) : "N/A"}</td>
+          <td>${record.effective_from ? formatDateToDDMMYY(record.effective_from) : "N/A"}</td>
+          <td>${record.effective_till ? formatDateToDDMMYY(record.effective_till) : "—"}</td>
+          <td style="text-align: right;">${record.days}</td>
+          <td style="text-align: right;">Rs. ${Math.round(record.period_payable).toLocaleString("en-US")}</td>
+          <td style="text-align: center;">${record.effective_till === null ? "Active" : "Closed"}</td>
         </tr>
       `).join("");
 
@@ -394,13 +321,17 @@ const ViewSalary = () => {
               </div>
             </div>
 
-            <h2 style="margin-top: 30px;">Salary History</h2>
+            <h2 style="margin-top: 30px;">Salary History (Prorated Breakdown)</h2>
             <table>
               <thead>
                 <tr>
-                  <th>Serial</th>
+                  <th>#</th>
                   <th>Base Salary</th>
-                  <th>Effective From</th>
+                  <th>From</th>
+                  <th>Till</th>
+                  <th style="text-align: right;">Days</th>
+                  <th style="text-align: right;">Period Payable</th>
+                  <th style="text-align: center;">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -426,12 +357,12 @@ const ViewSalary = () => {
     }
   };
 
-  // Fetch salary history for a specific teacher
+  // Fetch salary history for a specific teacher using the new summary endpoint
   const fetchSalaryHistoryForTeacher = async (teacherId: number) => {
     try {
       setIsLoadingSalaryHistory(true);
-      const history = await SalaryAPI.getTeacherSalaryHistory(teacherId);
-      setSalaryHistory(history);
+      const summary = await SalaryAPI.getTeacherSalarySummary(teacherId);
+      setSalaryHistory(summary.salary_history);
     } catch (error) {
       console.error("Error fetching salary history:", error);
       toast.error("Failed to load salary history");
@@ -439,6 +370,19 @@ const ViewSalary = () => {
     } finally {
       setIsLoadingSalaryHistory(false);
     }
+  };
+
+  // Toggle expanded state for a teacher
+  const toggleExpanded = (teacherId: number) => {
+    setExpandedTeachers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(teacherId)) {
+        newSet.delete(teacherId);
+      } else {
+        newSet.add(teacherId);
+      }
+      return newSet;
+    });
   };
 
   // Calculate summary statistics
@@ -741,7 +685,7 @@ const ViewSalary = () => {
 
               {/* Salary History Table */}
               <div className="bg-gray-50 dark:bg-neutral-800 p-4 rounded-lg border border-gray-200 dark:border-neutral-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Salary History</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Salary History (Prorated Breakdown)</h3>
                 {isLoadingSalaryHistory ? (
                   <div className="text-center py-4 text-gray-500 dark:text-gray-400">
                     Loading salary history...
@@ -751,22 +695,44 @@ const ViewSalary = () => {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200 dark:border-neutral-700">
-                          <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Serial</th>
+                          <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">#</th>
                           <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Base Salary</th>
-                          <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Effective From</th>
+                          <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">From</th>
+                          <th className="text-left py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Till</th>
+                          <th className="text-right py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Days</th>
+                          <th className="text-right py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Period Payable</th>
+                          <th className="text-center py-2 px-2 font-semibold text-gray-700 dark:text-gray-300">Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {salaryHistory.map((record, index) => (
                           <tr key={record.id} className="border-b border-gray-100 dark:border-neutral-700 hover:bg-gray-100 dark:hover:bg-neutral-700">
                             <td className="py-2 px-2 text-gray-900 dark:text-gray-100">{index + 1}</td>
-                            <td className="py-2 px-2 text-gray-900 dark:text-gray-100 font-medium">Rs. {Math.round(record.base_salary).toLocaleString("en-US")}</td>
+                            <td className="py-2 px-2 text-gray-900 dark:text-gray-100 font-medium">
+                              Rs. {Math.round(record.base_salary).toLocaleString("en-US")}
+                            </td>
                             <td className="py-2 px-2 text-gray-900 dark:text-gray-100">
-                              {record.effective_from ? new Date(record.effective_from).toLocaleDateString("en-GB", { 
-                                day: "2-digit", 
-                                month: "2-digit", 
-                                year: "2-digit" 
-                              }) : "N/A"}
+                              {record.effective_from ? formatDateToDDMMYY(record.effective_from) : "N/A"}
+                            </td>
+                            <td className="py-2 px-2 text-gray-900 dark:text-gray-100">
+                              {record.effective_till ? formatDateToDDMMYY(record.effective_till) : "—"}
+                            </td>
+                            <td className="py-2 px-2 text-right text-gray-900 dark:text-gray-100">
+                              {record.days}
+                            </td>
+                            <td className="py-2 px-2 text-right text-gray-900 dark:text-gray-100 font-medium">
+                              Rs. {Math.round(record.period_payable).toLocaleString("en-US")}
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              {record.effective_till === null ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                  Active
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                  Closed
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}

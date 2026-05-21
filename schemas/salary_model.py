@@ -17,7 +17,14 @@ class TeacherSalaryBase(SQLModel):
     teacher_id: int = Field(foreign_key="teachernames.teacher_name_id", nullable=False)
     base_salary: Decimal = Field(max_digits=10, decimal_places=2, nullable=False)
     effective_from: str = Field(nullable=False)  # YYYY-MM-DD format
+    effective_till: Optional[str] = Field(default=None, nullable=True)  # NULL = currently active
     created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    
+    class Config:
+        # Allow automatic conversion from date to string
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+        }
 
 
 class TeacherSalary(TeacherSalaryBase, table=True):
@@ -40,6 +47,7 @@ class TeacherSalaryUpdate(SQLModel):
 
 class TeacherSalaryResponse(TeacherSalaryBase, SQLModel):
     teacher_name: Optional[str] = None
+    effective_till: Optional[str] = None
 
 
 # ============================================================================

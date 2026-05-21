@@ -14,6 +14,13 @@ from schemas.salary_model import (
 from schemas.teacher_names_model import TeacherNames
 from user.user_crud import require_admin_accountant, require_admin
 from user.user_models import User
+from services.salary_service import (
+    close_previous_active_record,
+    reconnect_neighbors_after_delete,
+    recalculate_all_effective_till,
+    calculate_teacher_salary_summary,
+    validate_salary_timeline
+)
 
 
 # ============================================================================
@@ -158,7 +165,7 @@ def get_all_teacher_salaries(
     db: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(require_admin_accountant())]
 ):
-    """Get all teacher salary configurations."""
+    """Get all teacher salary configurations with effective_till."""
     try:
         salaries = db.exec(select(TeacherSalary)).all()
 
@@ -175,7 +182,8 @@ def get_all_teacher_salaries(
                     teacher_id=salary.teacher_id,
                     teacher_name=teacher.teacher_name if teacher else None,
                     base_salary=salary.base_salary,
-                    effective_from=salary.effective_from,
+                    effective_from=salary.effective_from if isinstance(salary.effective_from, str) else salary.effective_from.isoformat(),
+                    effective_till=salary.effective_till.isoformat() if salary.effective_till else None,
                     created_at=salary.created_at
                 )
             )
@@ -207,11 +215,28 @@ def create_teacher_salary(
                 detail=f"Teacher with ID {salary_data.teacher_id} not found"
             )
 
-        # Create new teacher salary record
+        # Validate: no overlapping active record with same effective_from
+        existing = db.exec(
+            select(TeacherSalary)
+            .where(TeacherSalary.teacher_id == salary_data.teacher_id)
+            .where(TeacherSalary.effective_from == salary_data.effective_from)
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail="A salary record with the same effective_from already exists."
+            )
+
+        # Close the current active record before creating new one
+        effective_from_date = date.fromisoformat(salary_data.effective_from)
+        close_previous_active_record(db, salary_data.teacher_id, effective_from_date)
+
+        # Create new teacher salary record (effective_till = NULL = open-ended)
         new_salary = TeacherSalary(
             teacher_id=salary_data.teacher_id,
             base_salary=salary_data.base_salary,
-            effective_from=salary_data.effective_from
+            effective_from=salary_data.effective_from,
+            effective_till=None
         )
 
         db.add(new_salary)
@@ -223,7 +248,8 @@ def create_teacher_salary(
             teacher_id=new_salary.teacher_id,
             teacher_name=teacher.teacher_name,
             base_salary=new_salary.base_salary,
-            effective_from=new_salary.effective_from,
+            effective_from=new_salary.effective_from if isinstance(new_salary.effective_from, str) else new_salary.effective_from.isoformat(),
+            effective_till=new_salary.effective_till.isoformat() if new_salary.effective_till else None,
             created_at=new_salary.created_at
         )
     except HTTPException:
@@ -263,7 +289,8 @@ def get_teacher_salary_history(
                     teacher_id=salary.teacher_id,
                     teacher_name=teacher.teacher_name if teacher else None,
                     base_salary=salary.base_salary,
-                    effective_from=salary.effective_from,
+                    effective_from=salary.effective_from if isinstance(salary.effective_from, str) else salary.effective_from.isoformat(),
+                    effective_till=salary.effective_till.isoformat() if salary.effective_till else None,
                     created_at=salary.created_at
                 )
             )
@@ -302,6 +329,10 @@ def update_teacher_salary(
             salary.effective_from = salary_data.effective_from
         
         db.add(salary)
+        
+        # Recalculate ALL effective_till values for this teacher's timeline
+        recalculate_all_effective_till(db, salary.teacher_id)
+        
         db.commit()
         db.refresh(salary)
         
@@ -315,7 +346,8 @@ def update_teacher_salary(
             teacher_id=salary.teacher_id,
             teacher_name=teacher.teacher_name if teacher else None,
             base_salary=salary.base_salary,
-            effective_from=salary.effective_from,
+            effective_from=salary.effective_from if isinstance(salary.effective_from, str) else salary.effective_from.isoformat(),
+            effective_till=salary.effective_till.isoformat() if salary.effective_till else None,
             created_at=salary.created_at
         )
     except HTTPException:
@@ -347,11 +379,8 @@ def delete_teacher_salary(
                 detail=f"Teacher salary record with ID {salary_id} not found"
             )
 
-        # Delete all salary-related records for this teacher to prevent orphan data
-        db.exec(delete(SalaryPayment).where(SalaryPayment.teacher_id == salary.teacher_id))
-        db.exec(delete(Allowance).where(Allowance.teacher_id == salary.teacher_id))
-        db.exec(delete(Deduction).where(Deduction.teacher_id == salary.teacher_id))
-        db.exec(delete(SalaryLedger).where(SalaryLedger.teacher_id == salary.teacher_id))
+        # Reconnect neighboring periods BEFORE deleting
+        reconnect_neighbors_after_delete(db, salary)
 
         db.delete(salary)
         db.commit()
@@ -364,6 +393,38 @@ def delete_teacher_salary(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting teacher salary: {str(e)}"
         )
+
+# ── NEW: Teacher Salary Summary with Historical Calculation ──────────────────
+@salary_router.get("/teacher-summary/{teacher_id}")
+def get_teacher_salary_summary(
+    teacher_id: int,
+    db: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(require_admin_accountant())]
+):
+    """
+    Get comprehensive salary summary for a teacher including:
+    - All historical salary periods with prorated calculations
+    - Total allowances and deductions
+    - Total paid and remaining balance
+    """
+    try:
+        # Verify teacher exists
+        teacher = db.get(TeacherNames, teacher_id)
+        if not teacher:
+            raise HTTPException(status_code=404, detail="Teacher not found")
+
+        # Calculate summary using the service function
+        summary = calculate_teacher_salary_summary(db, teacher_id)
+        
+        return summary
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error calculating teacher salary summary: {str(e)}"
+        )
+
 
 
 # ============================================================================

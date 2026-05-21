@@ -10,6 +10,7 @@ export interface TeacherSalaryResponse {
   teacher_name?: string;
   base_salary: number;
   effective_from: string;
+  effective_till?: string | null;  // NULL = currently active
   created_at: string;
 }
 
@@ -17,6 +18,30 @@ export interface TeacherSalaryCreate {
   teacher_id: number;
   base_salary: number;
   effective_from: string;
+}
+
+// New interfaces for salary history feature
+export interface SalaryPeriod {
+  id: number;
+  base_salary: number;
+  effective_from: string;
+  effective_till: string | null;  // null = currently active
+  days: number;
+  period_payable: number;
+}
+
+export interface TeacherSalarySummary {
+  teacher_id: number;
+  teacher_name: string;
+  current_base_salary: number;
+  latest_effective_from: string;
+  total_payable: number;
+  total_allowance: number;
+  total_deduction: number;
+  total_net_salary: number;
+  total_paid: number;
+  remaining: number;
+  salary_history: SalaryPeriod[];
 }
 
 export interface SalaryLedgerResponse {
@@ -129,6 +154,16 @@ export namespace SalaryAPI {
       return response.data;
     } catch (error) {
       console.error(`Error updating teacher salary ${salaryId}:`, error);
+      throw error;
+    }
+  };
+
+  export const getTeacherSalarySummary = async (teacherId: number): Promise<TeacherSalarySummary> => {
+    try {
+      const response = await axiosInstance.get<TeacherSalarySummary>(`/salary/teacher-summary/${teacherId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching teacher salary summary for ${teacherId}:`, error);
       throw error;
     }
   };

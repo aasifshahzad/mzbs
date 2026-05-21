@@ -359,6 +359,12 @@ const SetSalary = () => {
                   <th className="text-left py-3 px-2 font-semibold text-gray-700 dark:text-gray-200">
                     Effective From
                   </th>
+                  <th className="text-left py-3 px-2 font-semibold text-gray-700 dark:text-gray-200">
+                    Effective Till
+                  </th>
+                  <th className="text-left py-3 px-2 font-semibold text-gray-700 dark:text-gray-200">
+                    Status
+                  </th>
                   {isAdmin && (
                     <th className="text-left py-3 px-2 font-semibold text-gray-700 dark:text-gray-200">
                       Action
@@ -383,6 +389,20 @@ const SetSalary = () => {
                     </td>
                     <td className="py-3 px-2 text-gray-900 dark:text-gray-100">
                       {formatDate(record.effective_from)}
+                    </td>
+                    <td className="py-3 px-2 text-gray-900 dark:text-gray-100">
+                      {record.effective_till ? formatDate(record.effective_till) : "—"}
+                    </td>
+                    <td className="py-3 px-2">
+                      {record.effective_till === null ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                          Closed
+                        </span>
+                      )}
                     </td>
                     {isAdmin && (
                       <td className="py-3 px-2 flex gap-2">
