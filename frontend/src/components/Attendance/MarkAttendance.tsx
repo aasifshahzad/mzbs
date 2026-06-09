@@ -348,14 +348,26 @@ const MarkAttendance = () => {
       attendances,
     };
 
+    console.log("Sending payload:", payload);
+
     try {
       const response = (await AttendanceAPI.Create(
         payload
       )) as unknown as AxiosResponse<BulkAttendanceResponse>;
+      
+      console.log("Full response object:", response);
+      console.log("Response status:", response.status);
+      console.log("Response data:", response.data);
+      console.log("Response data type:", typeof response.data);
+      
       if (response.status === 200 || response.status === 201) {
-        const { summary } = response.data;
+        // Extract summary safely from response.data
+        const summary = response.data as BulkAttendanceResponse;
+        
+        console.log("Extracted summary:", summary);
+        
         toast.success(
-          `Attendance submitted: ${summary.saved} saved, ${summary.skipped} skipped`,
+          `Attendance submitted: ${summary.summary.saved} saved, ${summary.summary.skipped} skipped`,
           { position: "bottom-center", duration: 5000 }
         );
       } else {
@@ -366,6 +378,10 @@ const MarkAttendance = () => {
       }
     } catch (error: unknown) {
       console.error("Submit error:", error);
+      console.error("Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       toast.error("Something went wrong!", {
         position: "bottom-center",
         duration: 5000,

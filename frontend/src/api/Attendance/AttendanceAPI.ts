@@ -16,9 +16,9 @@ interface FilteredAttendance {
 export namespace AttendanceAPI {
 export const Create = async (Attendances: MarkAttInput) => {
     try {
-      const response = await AxiosInstance.post<MarkAttInput>(
+      const response = await AxiosInstance.post(
         "/mark_attendance/add_bulk_attendance/",
-        JSON.stringify(Attendances),
+        Attendances,
         {
           headers: {
             "Content-Type": "application/json",
@@ -26,6 +26,7 @@ export const Create = async (Attendances: MarkAttInput) => {
         }
       );
       console.log("API Response:", response);
+      console.log("API Response Data:", response.data);
       return response;
     } catch (error) {
       console.error("API Error:", error);
@@ -78,9 +79,9 @@ export const Create = async (Attendances: MarkAttInput) => {
       };
       if (!payload) throw new Error("Failed to update attendance");
       
-      const response = await AxiosInstance.patch<MarkAttUpdate>(
+      const response = await AxiosInstance.patch(
         `/mark_attendance/update_attendance/${attendance_id}`,
-        JSON.stringify(payload),
+        payload,
         {
           headers: {
             "Content-Type": "application/json",
