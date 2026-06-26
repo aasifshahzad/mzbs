@@ -149,6 +149,14 @@ def recalculate_ledger_totals(
     return ledger
 
 
+def _serialize_date_value(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    return value.isoformat()
+
+
 salary_router = APIRouter(
     prefix="/salary",
     tags=["Salary"],
@@ -182,8 +190,8 @@ def get_all_teacher_salaries(
                     teacher_id=salary.teacher_id,
                     teacher_name=teacher.teacher_name if teacher else None,
                     base_salary=salary.base_salary,
-                    effective_from=salary.effective_from if isinstance(salary.effective_from, str) else salary.effective_from.isoformat(),
-                    effective_till=salary.effective_till.isoformat() if salary.effective_till else None,
+                    effective_from=_serialize_date_value(salary.effective_from),
+                    effective_till=_serialize_date_value(salary.effective_till),
                     created_at=salary.created_at
                 )
             )
@@ -248,8 +256,8 @@ def create_teacher_salary(
             teacher_id=new_salary.teacher_id,
             teacher_name=teacher.teacher_name,
             base_salary=new_salary.base_salary,
-            effective_from=new_salary.effective_from if isinstance(new_salary.effective_from, str) else new_salary.effective_from.isoformat(),
-            effective_till=new_salary.effective_till.isoformat() if new_salary.effective_till else None,
+            effective_from=_serialize_date_value(new_salary.effective_from),
+            effective_till=_serialize_date_value(new_salary.effective_till),
             created_at=new_salary.created_at
         )
     except HTTPException:
@@ -289,8 +297,8 @@ def get_teacher_salary_history(
                     teacher_id=salary.teacher_id,
                     teacher_name=teacher.teacher_name if teacher else None,
                     base_salary=salary.base_salary,
-                    effective_from=salary.effective_from if isinstance(salary.effective_from, str) else salary.effective_from.isoformat(),
-                    effective_till=salary.effective_till.isoformat() if salary.effective_till else None,
+                    effective_from=_serialize_date_value(salary.effective_from),
+                    effective_till=_serialize_date_value(salary.effective_till),
                     created_at=salary.created_at
                 )
             )
@@ -346,8 +354,8 @@ def update_teacher_salary(
             teacher_id=salary.teacher_id,
             teacher_name=teacher.teacher_name if teacher else None,
             base_salary=salary.base_salary,
-            effective_from=salary.effective_from if isinstance(salary.effective_from, str) else salary.effective_from.isoformat(),
-            effective_till=salary.effective_till.isoformat() if salary.effective_till else None,
+            effective_from=_serialize_date_value(salary.effective_from),
+            effective_till=_serialize_date_value(salary.effective_till),
             created_at=salary.created_at
         )
     except HTTPException:

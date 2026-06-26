@@ -282,16 +282,8 @@ def filter_attendance_by_ids(
 
     query = _eager_select()
 
-    # FIX 6: TEACHER role scoping
-    if current_user.role == UserRole.TEACHER:
-        teacher = session.exec(
-            select(TeacherNames).where(TeacherNames.teacher_name == current_user.username)
-        ).first()
-        if not teacher:
-            raise HTTPException(status_code=404, detail="Teacher record not found")
-        query = query.where(Attendance.teacher_name_id == teacher.teacher_name_id)
-
-    # FIX 7: parse date string and filter on a datetime range to handle time components
+    # Teacher users can view attendance records with the same access as admin and principal.
+    # Any specific teacher_name_id filters will still apply when passed explicitly.
     if attendance_date:
         date_obj = _parse_date(attendance_date, "attendance_date")
         query = query.where(
@@ -340,15 +332,8 @@ def get_filtered_attendance_by_name(                       # FIX 1 (continued): 
 
     query = _eager_select()
 
-    # FIX 8: TEACHER role scoping (was missing from this endpoint)
-    if current_user.role == UserRole.TEACHER:
-        teacher = session.exec(
-            select(TeacherNames).where(TeacherNames.teacher_name == current_user.username)
-        ).first()
-        if not teacher:
-            raise HTTPException(status_code=404, detail="Teacher record not found")
-        query = query.where(Attendance.teacher_name_id == teacher.teacher_name_id)
-
+    # Teacher users can view attendance records with the same access as admin and principal.
+    # Any specific teacher_name filters will still apply when passed explicitly.
     if class_name:
         query = query.join(Attendance.attendance_class).where(ClassNames.class_name == class_name)
     if teacher_name:

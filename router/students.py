@@ -117,16 +117,54 @@ def delete_student(
             "snapshot_date": datetime.utcnow().isoformat()
         }
 
+        attendance_records_snapshot = [
+            {
+                "attendance_date": record.attendance_date.isoformat(),
+                "attendance_time_id": record.attendance_time_id,
+                "class_name_id": record.class_name_id,
+                "teacher_name_id": record.teacher_name_id,
+                "attendance_value_id": record.attendance_value_id,
+                "student_id": record.student_id,
+            }
+            for record in attendance_records
+        ]
+
+        admission_records = session.exec(
+            select(Admission).where(Admission.student_id == student_id)
+        ).all()
+        admission_records_snapshot = [
+            {
+                "admission_date": record.admission_date.isoformat(),
+                "required_class": record.required_class,
+                "student_id": record.student_id,
+            }
+            for record in admission_records
+        ]
+
         # ✅ 2.5. Snapshot paid fees (before deleting unpaid fees)
         all_fees = session.exec(
             select(Fee).where(Fee.student_id == student_id)
         ).all()
 
+        fee_records_snapshot = [
+            {
+                "fee_id": f.fee_id,
+                "class_id": f.class_id,
+                "fee_amount": str(f.fee_amount),
+                "fee_month": f.fee_month,
+                "fee_year": str(f.fee_year),
+                "fee_status": f.fee_status,
+                "student_id": f.student_id,
+                "original_student_id": f.original_student_id,
+            }
+            for f in all_fees
+        ]
+
         paid_fees_snapshot = [
             {
                 "fee_id": f.fee_id,
                 "fee_month": f.fee_month,
-                "fee_year": f.fee_year,
+                "fee_year": str(f.fee_year),
                 "fee_amount": str(f.fee_amount),
                 "fee_status": f.fee_status,
             }
@@ -161,7 +199,10 @@ def delete_student(
             deleted_by=payload.deleted_by,
             deleted_at=datetime.utcnow(),
             attendance_summary=attendance_summary,  # ✅
+            attendance_records=attendance_records_snapshot,
+            admission_records=admission_records_snapshot,
             fee_summary=fee_summary,  # ✅ NEW
+            fee_records=fee_records_snapshot,
         )
         session.add(deleted_record)
 

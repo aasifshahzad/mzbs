@@ -158,18 +158,18 @@ export default function ModernStudentTable() {
   // Define formDeleteHandler
   const formDeleteHandler = async (reason: string) => {
     if (!modalStudent || !currentUserId) return;
-    
+
     try {
       const payload = {
         reason,
-        deleted_by: currentUserId
+        deleted_by: currentUserId,
       };
-      const response = await API.Delete(modalStudent.id, payload);
-      // API returns successful response with status 200
+      await API.Delete(modalStudent.id, payload);
+      setData((prev) => prev.filter((student) => Number(student.student_id) !== modalStudent.id));
       toast.success("Student deleted successfully and moved to deleted records", {
         position: "bottom-center",
       });
-      GetData(); // Refresh data after delete
+      await GetData(); // Refresh data after delete
       setModalStudent(null);
     } catch (error) {
       console.log("Error on Delete", error);

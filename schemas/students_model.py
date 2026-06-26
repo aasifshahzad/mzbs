@@ -115,8 +115,10 @@ class DeletedStudent(SQLModel, table=True):
     deleted_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime))
     # ✅ Stores attendance summary snapshot at deletion time
     attendance_summary: Optional[dict] = Field(default=None, sa_column=Column(JSON))
-    # ✅ Stores fee summary snapshot at deletion time
+    attendance_records: Optional[List[dict]] = Field(default=None, sa_column=Column(JSON))
+    admission_records: Optional[List[dict]] = Field(default=None, sa_column=Column(JSON))
     fee_summary: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    fee_records: Optional[List[dict]] = Field(default=None, sa_column=Column(JSON))
 
 
 class DeletedStudentResponse(SQLModel):
@@ -132,8 +134,11 @@ class DeletedStudentResponse(SQLModel):
     deleted_at: datetime
     # ✅ Attendance summary snapshot
     attendance_summary: Optional[dict] = None
+    attendance_records: Optional[List[dict]] = None
+    admission_records: Optional[List[dict]] = None
     # ✅ Fee summary snapshot
     fee_summary: Optional[dict] = None
+    fee_records: Optional[List[dict]] = None
 
     class Config:
         from_attributes = True

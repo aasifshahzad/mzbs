@@ -140,6 +140,63 @@ def test_create_attendance_value(admin_token):
     assert response.status_code == 200
     assert response.json()["attendance_value"] == value_data["attendance_value"]
 
+
+def test_teacher_salary_history_updates_effective_till(admin_token):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    teacher_response = client.post(
+        "/teacher_name/add_teacher_name/",
+        json={"teacher_name": "Salary Timeline Teacher"},
+        headers=headers,
+    )
+    assert teacher_response.status_code == 200
+    teacher_id = teacher_response.json()["teacher_name_id"]
+
+    first_salary_response = client.post(
+        "/salary/teacher-salary/add",
+        json={
+            "teacher_id": teacher_id,
+            "base_salary": 20000,
+            "effective_from": "2026-04-01",
+        },
+        headers=headers,
+    )
+    assert first_salary_response.status_code == 201
+
+    second_salary_response = client.post(
+        "/salary/teacher-salary/add",
+        json={
+            "teacher_id": teacher_id,
+            "base_salary": 23500,
+            "effective_from": "2026-05-05",
+        },
+        headers=headers,
+    )
+    assert second_salary_response.status_code == 201
+    second_salary_id = second_salary_response.json()["id"]
+
+    update_response = client.put(
+        f"/salary/teacher-salary/{second_salary_id}",
+        json={
+            "effective_from": "2026-06-05",
+        },
+        headers=headers,
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["effective_till"] is None
+
+    history_response = client.get("/salary/teacher-salary/all", headers=headers)
+    assert history_response.status_code == 200
+
+    salaries = [item for item in history_response.json() if item["teacher_id"] == teacher_id]
+    assert len(salaries) == 2
+
+    earlier_record = next(item for item in salaries if item["effective_from"] == "2026-04-01")
+    later_record = next(item for item in salaries if item["effective_from"] == "2026-06-05")
+
+    assert earlier_record["effective_till"] == "2026-06-04"
+    assert later_record["effective_till"] is None
+
 # Test Error Cases
 def test_unauthorized_access():
     response = client.get("/students/all_students/")

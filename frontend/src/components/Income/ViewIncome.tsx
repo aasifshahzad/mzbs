@@ -36,6 +36,7 @@ interface IncomeFormValues {
 
 interface IncomeDataItem {
   id: number;
+  recipt_number?: number | null;
   date: string;
   category: string;
   source: string;
@@ -165,7 +166,7 @@ const ViewIncome = () => {
     const matchedCategoryId = getIncomeCategoryIdByName(incomeCategory, income.category);
     setEditingIncome(income);
     setEditFormData({
-      recipt_number: String(income.id),
+      recipt_number: income.recipt_number ? String(income.recipt_number) : "",
       date: income.date.split("T")[0], // Format: YYYY-MM-DD
       category_id: matchedCategoryId ? String(matchedCategoryId) : "",
       source: income.source,
@@ -182,6 +183,9 @@ const ViewIncome = () => {
     setIsLoading(true);
     try {
       const updateData = {
+        recipt_number: editFormData.recipt_number
+          ? Number(editFormData.recipt_number)
+          : null,
         date: editFormData.date,
         source: editFormData.source,
         description: editFormData.description || null,
@@ -271,6 +275,7 @@ const ViewIncome = () => {
               <Table>
                 <TableHeader className="bg-primary dark:bg-secondary hover:bg-none">
                   <TableRow>
+                    <TableHead className="text-gray-100">Receipt Number</TableHead>
                     <TableHead className="text-gray-100">Date</TableHead>
                     <TableHead className="text-gray-100">Category</TableHead>
                     <TableHead className="text-gray-100">Source</TableHead>
@@ -285,6 +290,7 @@ const ViewIncome = () => {
                 <TableBody>
                   {incomeData.map((item) => (
                     <TableRow className="h-[1rem]" key={item.id}>
+                      <TableCell>{item.recipt_number ?? "-"}</TableCell>
                       <TableCell>{formatDateToDDMMYY(item.date)}</TableCell>
                       <TableCell>{item.category}</TableCell>
                       <TableCell>{item.source}</TableCell>
@@ -330,6 +336,18 @@ const ViewIncome = () => {
           </DialogHeader>
           {editingIncome && (
             <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Receipt Number</label>
+                <Input
+                  type="number"
+                  value={editFormData.recipt_number}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, recipt_number: e.target.value })
+                  }
+                  placeholder="Enter receipt number"
+                />
+              </div>
+
               <div className="space-y-1">
                 <label className="text-sm font-medium">Date</label>
                 <Input
