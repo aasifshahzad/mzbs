@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
+from sqlalchemy import func
 from typing import List, Annotated
 from datetime import datetime
 from decimal import Decimal
@@ -19,16 +20,29 @@ deleted_students_router = APIRouter(
 )
 
 
-@deleted_students_router.get("/", response_model=List[DeletedStudentResponse])
+@deleted_students_router.get("/", response_model=dict)
 def get_deleted_students(
     user: Annotated[User, Depends(require_admin_principal())],
-    session: Annotated[Session, Depends(get_session)]
+    session: Annotated[Session, Depends(get_session)],
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
 ):
     """List all soft-deleted students. Accessible by admin/principal only."""
+    total = session.exec(select(func.count(DeletedStudent.student_id))).one()
     records = session.exec(
-        select(DeletedStudent).order_by(DeletedStudent.deleted_at.desc())
+        select(DeletedStudent)
+        .order_by(DeletedStudent.deleted_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     ).all()
-    return records
+
+    return {
+        "data": records,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
 
 
 @deleted_students_router.post("/{deleted_student_id}/restore")

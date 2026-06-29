@@ -1,7 +1,7 @@
 from sqlalchemy import text
 from asyncio.log import logger
 from typing import Annotated, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError  # <-- Add this import
 

@@ -9,10 +9,27 @@ import {
   getPaginationRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table";
-import { Search, LoaderIcon, Eye, Trash2, Printer, Edit2 } from "lucide-react";
+import { Search, LoaderIcon, Eye, Trash2, Printer, Edit2, ChevronFirst, ChevronLast } from "lucide-react";
 import { StudentAPI as API } from "@/api/Student/StudentsAPI";
 import { usePrint } from "@/components/print/usePrint";
 export { format } from "date-fns";
+
+const extractArrayData = <T,>(response: unknown): T[] => {
+  const payload = (response as { data?: unknown }).data;
+
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const nested = (payload as { data?: unknown }).data;
+    if (Array.isArray(nested)) {
+      return nested as T[];
+    }
+  }
+
+  return [];
+};
 
 import {
   Table,
@@ -42,6 +59,14 @@ import {
 } from "@/components/ui/dialog";
 import { useRole } from "@/context/RoleContext";
 
+interface PaginatedStudentResponse {
+  data?: StudentModel[];
+  page?: number;
+  page_size?: number;
+  total?: number;
+  total_pages?: number;
+}
+
 export default function ModernStudentTable() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [data, setData] = useState<StudentModel[]>([]);
@@ -53,6 +78,11 @@ export default function ModernStudentTable() {
   const { role } = useRole();
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [classNameList, setClassNameList] = useState<SelectComponentOption[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [serialOffset, setSerialOffset] = useState(0);
 
   // Get current user ID from localStorage
   useEffect(() => {
@@ -64,15 +94,14 @@ export default function ModernStudentTable() {
   useEffect(() => {
     const fetchClassNames = async () => {
       try {
-        const response = (await ClassNameAPI.Get()) as { data: Array<{ class_name_id: number; class_name: string }> };
-        if (response.data) {
-          setClassNameList(
-            response.data.map((item) => ({
-              id: item.class_name,
-              title: item.class_name,
-            }))
-          );
-        }
+        const response = await ClassNameAPI.Get();
+        const classes = extractArrayData<{ class_name_id: number; class_name: string }>(response);
+        setClassNameList(
+          classes.map((item) => ({
+            id: item.class_name,
+            title: item.class_name,
+          }))
+        );
       } catch (error) {
         console.error("Error fetching class names:", error);
       }
@@ -172,7 +201,6 @@ export default function ModernStudentTable() {
       await GetData(); // Refresh data after delete
       setModalStudent(null);
     } catch (error) {
-      console.log("Error on Delete", error);
       toast.error("Failed to delete student. Please try again.", {
         position: "bottom-center",
       });
@@ -182,9 +210,9 @@ export default function ModernStudentTable() {
   // Define columns after formDeleteHandler
   const columns: ColumnDef<StudentModel>[] = [
     {
-      accessorKey: "student_id",
+      id: "serialNumber",
       header: "Sr. No",
-      cell: ({ row }) => <div className="font-medium">{row.getValue("student_id")}</div>,
+      cell: ({ row }) => <div className="font-medium">{serialOffset + row.index + 1}</div>,
     },
     {
       accessorKey: "student_name",
@@ -268,26 +296,40 @@ export default function ModernStudentTable() {
   ];
 
   // Fetch data from API
-  const GetData = async () => {
+  const GetData = async (page = 1) => {
     setLoading(true);
     try {
-      const response = await API.Get() as { data: StudentModel[] };
-      // Sort students by student_id (serial number)
-      const sortedData = response.data.sort((a, b) => {
-        // Try numeric sorting first
+      const response = await API.Get(page, pageSize);
+      const payload = (response?.data ?? {}) as PaginatedStudentResponse;
+      const rows = Array.isArray(payload.data)
+        ? payload.data
+        : extractArrayData<StudentModel>(response);
+      const sortedData = [...rows].sort((a, b) => {
         const aNum = parseInt(a.student_id, 10);
         const bNum = parseInt(b.student_id, 10);
-        
+
         if (!isNaN(aNum) && !isNaN(bNum)) {
           return aNum - bNum;
         }
-        
-        // Fall back to string sorting
+
         return a.student_id.localeCompare(b.student_id);
       });
+      const total = typeof payload.total === "number" ? payload.total : rows.length;
+      const currentPageFromPayload = typeof payload.page === "number" ? payload.page : page;
+      const totalPagesFromPayload = typeof payload.total_pages === "number"
+        ? payload.total_pages
+        : Math.max(1, Math.ceil(total / pageSize));
+
       setData(sortedData);
+      setCurrentPage(currentPageFromPayload);
+      setTotalPages(totalPagesFromPayload);
+      setTotalRecords(total);
+      setSerialOffset(Math.max(0, (currentPageFromPayload - 1) * pageSize));
     } catch (error) {
-      console.error("Error fetching data:", error);
+      setData([]);
+      setCurrentPage(1);
+      setTotalPages(1);
+      setTotalRecords(0);
     } finally {
       setLoading(false);
     }
@@ -337,6 +379,63 @@ export default function ModernStudentTable() {
           )}
         </div>
       </div>
+
+      {!loading && data?.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Page {currentPage} of {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => GetData(1)}
+              disabled={currentPage === 1 || loading}
+              className="px-2 sm:px-3"
+              aria-label="First page"
+            >
+              <ChevronFirst className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">First</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => GetData(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1 || loading}
+              className="px-2 sm:px-3"
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => GetData(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages || loading}
+              className="px-2 sm:px-3"
+            >
+              Next
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => GetData(totalPages)}
+              disabled={currentPage === totalPages || loading}
+              className="px-2 sm:px-3"
+              aria-label="Last page"
+            >
+              <span className="hidden sm:inline mr-1">Last</span>
+              <ChevronLast className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="text-sm text-gray-500">
+            Showing {totalRecords === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} results
+          </div>
+        </div>
+      )}
 
       {/* Mobile: Card View, Desktop: Table View */}
       {/* Table rendering - Hidden on mobile, visible on sm and up */}
@@ -408,106 +507,81 @@ export default function ModernStudentTable() {
             <LoaderIcon className="animate-spin w-8 h-8" />
           </div>
         ) : data?.length > 0 ? (
-          table.getRowModel().rows.map((row) => (
-            <div
-              key={row.id}
-              className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2"
-            >
-              <div className="flex justify-between items-start gap-2">
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Sr. No</p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {row.original.student_id}
-                  </p>
+          <>
+            {table.getRowModel().rows.map((row) => (
+              <div
+                key={row.id}
+                className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2"
+              >
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Sr. No</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {serialOffset + row.index + 1}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedStudent(row.original);
+                        setShowDetailsDialog(true);
+                      }}
+                      className="p-1 text-gray-600 hover:bg-gray-100 rounded transition"
+                      title="View"
+                    >
+                      <Eye size={16} />
+                    </button>
+
+                    {(role === "ADMIN" || role === "PRINCIPAL") && (
+                      <button
+                        onClick={() => handleEditClick(row.original)}
+                        className="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
+                        title="Edit"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                    )}
+
+                    {role === "ADMIN" && (
+                      <button
+                        onClick={() => setModalStudent({ id: Number(row.original.student_id), name: row.original.student_name })}
+                        className="p-1 text-red-600 hover:bg-red-100 rounded transition"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  {/* View — all roles */}
-                  <button
-                    onClick={() => {
-                      setSelectedStudent(row.original);
-                      setShowDetailsDialog(true);
-                    }}
-                    className="p-1 text-gray-600 hover:bg-gray-100 rounded transition"
-                    title="View"
-                  >
-                    <Eye size={16} />
-                  </button>
-
-                  {/* Edit — ADMIN and PRINCIPAL */}
-                  {(role === "ADMIN" || role === "PRINCIPAL") && (
-                    <button
-                      onClick={() => handleEditClick(row.original)}
-                      className="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
-                      title="Edit"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                  )}
-
-                  {/* Delete — ADMIN only */}
-                  {role === "ADMIN" && (
-                    <button
-                      onClick={() => setModalStudent({ id: Number(row.original.student_id), name: row.original.student_name })}
-                      className="p-1 text-red-600 hover:bg-red-100 rounded transition"
-                      title="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="font-medium text-gray-600 dark:text-gray-400">Name</p>
+                    <p className="text-gray-900 dark:text-white truncate">{row.original.student_name}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600 dark:text-gray-400">Class</p>
+                    <p className="text-gray-900 dark:text-white truncate">{row.original.class_name}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600 dark:text-gray-400">Age</p>
+                    <p className="text-gray-900 dark:text-white">{row.original.student_date_of_birth ? calculateAge(row.original.student_date_of_birth) : "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600 dark:text-gray-400">Gender</p>
+                    <p className="text-gray-900 dark:text-white">{row.original.student_gender}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="font-medium text-gray-600 dark:text-gray-400">City</p>
+                    <p className="text-gray-900 dark:text-white truncate">{row.original.student_city}</p>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <p className="font-medium text-gray-600 dark:text-gray-400">Name</p>
-                  <p className="text-gray-900 dark:text-white truncate">{row.original.student_name}</p>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-600 dark:text-gray-400">Class</p>
-                  <p className="text-gray-900 dark:text-white truncate">{row.original.class_name}</p>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-600 dark:text-gray-400">Age</p>
-                  <p className="text-gray-900 dark:text-white">{row.original.student_date_of_birth ? calculateAge(row.original.student_date_of_birth) : "N/A"}</p>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-600 dark:text-gray-400">Gender</p>
-                  <p className="text-gray-900 dark:text-white">{row.original.student_gender}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="font-medium text-gray-600 dark:text-gray-400">City</p>
-                  <p className="text-gray-900 dark:text-white truncate">{row.original.student_city}</p>
-                </div>
-              </div>
-            </div>
-          ))
+            ))}
+          </>
         ) : (
           <div className="text-center py-8 text-gray-500">No results found.</div>
         )}
       </div>
-
-      {/* Pagination */}
-      {!loading && data?.length > 0 && (
-        <>
-          <Pagination
-            className="flex mt-4"
-            currentPage={table.getState().pagination.pageIndex + 1}
-            totalPages={Math.ceil((table?.getFilteredRowModel()?.rows?.length || 1) / table.getState().pagination.pageSize)}
-            onPageChange={(page) => {
-              table.setPageIndex(page - 1);
-            }}
-          />
-          <div className="flex justify-start text-sm text-gray-500 ">
-            Showing{" "}
-            {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}{" "}
-            to{" "}
-            {Math.min(
-              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-              table?.getFilteredRowModel()?.rows?.length || 0
-            )}{" "}
-            of {table?.getFilteredRowModel()?.rows?.length || 0} results
-          </div>
-        </>
-      )}
 
       {/* Student Details Dialog */}
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>

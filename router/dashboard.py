@@ -104,8 +104,6 @@ def get_attendance_summary(
         # FIX 1: use `selected_date` consistently — `today` was never defined
         selected_date = date if date else datetime.now().date()
 
-        print(f"[attendance-summary] Querying for date: {selected_date}")
-
         # First, get total student count and marked count
         total_students = session.exec(select(func.count(Students.student_id))).first() or 0
         
@@ -724,6 +722,63 @@ def get_fee_summary(
     except Exception as e:
         print(f"[fee-summary] ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching fee summary: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /dashboard/summary  —  Single combined endpoint for the frontend dashboard
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dashboard_router.get("/summary")
+def get_dashboard_summary(
+    date: date = Query(default=None),
+    year: int = Query(default=datetime.now().year),
+    session: Session = Depends(get_session),
+):
+    """Single endpoint that returns all dashboard data in one request."""
+    selected_date = date if date else datetime.now().date()
+
+    result = {}
+    errors = {}
+
+    try:
+        result["user_roles"] = get_user_role_summary(session=session)
+    except Exception as e:
+        errors["user_roles"] = str(e)
+
+    try:
+        result["student_summary"] = get_student_summary(date=selected_date, session=session)
+    except Exception as e:
+        errors["student_summary"] = str(e)
+
+    try:
+        result["attendance_summary"] = get_attendance_summary(date=selected_date, session=session)
+    except Exception as e:
+        errors["attendance_summary"] = str(e)
+
+    try:
+        result["income_expense_summary"] = get_income_expense_summary(year=year, session=session)
+    except Exception as e:
+        errors["income_expense_summary"] = str(e)
+
+    try:
+        result["fee_summary"] = get_fee_summary(year=year, session=session)
+    except Exception as e:
+        errors["fee_summary"] = str(e)
+
+    try:
+        result["income_summary"] = get_income_summary(year=year, month=None, session=session)
+    except Exception as e:
+        errors["income_summary"] = str(e)
+
+    try:
+        result["expense_summary"] = get_expense_summary(year=year, month=None, session=session)
+    except Exception as e:
+        errors["expense_summary"] = str(e)
+
+    if errors:
+        result["_errors"] = errors
+
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────

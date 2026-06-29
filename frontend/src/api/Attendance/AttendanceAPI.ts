@@ -14,7 +14,7 @@ interface FilteredAttendance {
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace AttendanceAPI {
-export const Create = async (Attendances: MarkAttInput) => {
+  export const Create = async (Attendances: MarkAttInput) => {
     try {
       const response = await AxiosInstance.post(
         "/mark_attendance/add_bulk_attendance/",
@@ -25,19 +25,20 @@ export const Create = async (Attendances: MarkAttInput) => {
           },
         }
       );
-      console.log("API Response:", response);
-      console.log("API Response Data:", response.data);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
-      throw error; 
+      throw error;
     }
-  }
-  export const GetbyFilter = async (FilteredAttendance: FilteredAttendance) => {
+  };
+
+  export const GetbyFilter = async (
+    FilteredAttendance: FilteredAttendance,
+    page = 1,
+    pageSize = 15
+  ) => {
     try {
-      // Build query parameters, only including non-zero/non-empty values
       const params = new URLSearchParams();
-      
+
       if (FilteredAttendance.attendance_date) {
         params.append('attendance_date', FilteredAttendance.attendance_date);
       }
@@ -60,17 +61,19 @@ export const Create = async (Attendances: MarkAttInput) => {
         params.append('attendance_value_id', FilteredAttendance.attendance_value_id.toString());
       }
 
+      params.append('page', page.toString());
+      params.append('page_size', pageSize.toString());
+
       const queryString = params.toString();
       const url = `/mark_attendance/filter_attendance_by_ids${queryString ? '?' + queryString : ''}`;
-      
+
       const response = await AxiosInstance.get<FilteredAttendance>(url);
       return response;
-    }
-    catch (error) {
-      console.error("API Error:", error);
+    } catch (error) {
       throw error;
     }
-  }
+  };
+
   export const Update = async (attendance_id: number, Attendances: MarkAttUpdate) => {
     try {
       const payload: MarkAttUpdate = {
@@ -78,7 +81,7 @@ export const Create = async (Attendances: MarkAttInput) => {
         ...GetActionDetail(Attendances, "update"),
       };
       if (!payload) throw new Error("Failed to update attendance");
-      
+
       const response = await AxiosInstance.patch(
         `/mark_attendance/update_attendance/${attendance_id}`,
         payload,
@@ -88,13 +91,12 @@ export const Create = async (Attendances: MarkAttInput) => {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
-      throw error; 
+      throw error;
     }
-  }
+  };
+
   export async function Delete(attendance_id: number) {
     try {
       const response = await AxiosInstance.delete(
@@ -110,6 +112,7 @@ export const Create = async (Attendances: MarkAttInput) => {
       throw error;
     }
   }
+
   export const GetAttendanceStatusSummary = async (
     studentId: number,
     fromDate?: string,
@@ -118,7 +121,7 @@ export const Create = async (Attendances: MarkAttInput) => {
     try {
       const params = new URLSearchParams();
       params.append('student_id', studentId.toString());
-      
+
       if (fromDate) {
         params.append('from_date', fromDate);
       }
@@ -131,7 +134,6 @@ export const Create = async (Attendances: MarkAttInput) => {
       );
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   };

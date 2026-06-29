@@ -12,6 +12,7 @@ import { Input } from "../ui/input";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { LoaderIcon } from "lucide-react";
+import { extractArrayData } from "@/utils/apiResponse";
 import { StudentAPI as API } from "@/api/Student/StudentsAPI";
 import { CreateStudent } from "@/models/students/Student";
 import { Select, SelectOption as SelectComponentOption } from "../Select";
@@ -87,7 +88,6 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
   };
 
   const handleFormSubmit = async (data: CreateStudent) => {
-    console.log(data);
     setLoading(true);
     if (data.student_date_of_birth.length === 10) {
       data.student_date_of_birth += "T00:00:00Z";
@@ -111,15 +111,14 @@ const AddNewStudent = ({ onClassAdded }: { onClassAdded: () => void }) => {
 
   const GetClassName = React.useCallback(async () => {
     try {
-      const response = (await API1.Get()) as { data: ClassNameResponse[] };
-      if (response.data) {
-        setClassNameList(
-          response.data.map((item) => ({
-            id: item.class_name,
-            title: item.class_name,
-          }))
-        );
-      }
+      const response = await API1.Get();
+      const classes = extractArrayData<ClassNameResponse>(response);
+      setClassNameList(
+        classes.map((item) => ({
+          id: item.class_name,
+          title: item.class_name,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching class names:", error);
     }

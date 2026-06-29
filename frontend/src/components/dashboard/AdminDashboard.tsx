@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/dashboard/Header";
 import { CardsSkeleton, ChartSkeleton, Skeleton } from "@/components/dashboard/Skeleton";
 import SalarySummarySection from "@/components/Salary/SalarySummarySection";
 import { motion } from "framer-motion";
+import { extractPayloadData } from "@/utils/apiResponse";
 import { DashboardAPI } from "@/api/Dashboard/dashboardAPI";
 import {
   BarChart,
@@ -380,13 +382,62 @@ export function AdminDashboard() {
   const [feeSummaryData, setFeeSummaryData] = useState<FeeSummaryData | null>(null);
   const [feeSummaryLoading, setFeeSummaryLoading] = useState(true);
 
-  // ── Fetch: User Roles ──
+  const { data: summaryData, isError: summaryError } = useQuery({
+    queryKey: ["dashboard-summary", today, currentYear],
+    queryFn: () => DashboardAPI.GetDashboardSummary(today, currentYear),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!summaryData) {
+      if (summaryError) {
+        setUserRolesLoading(false);
+        setStudentSummaryLoading(false);
+        setAttendanceSummaryLoading(false);
+        setIncomeExpenseLoading(false);
+        setIncomeSummaryLoading(false);
+        setExpenseSummaryLoading(false);
+        setFeeSummaryLoading(false);
+      }
+      return;
+    }
+    if (summaryData.user_roles && !userRolesData) {
+      setUserRolesData(summaryData.user_roles as UserRolesData);
+      setUserRolesLoading(false);
+    }
+    if (summaryData.student_summary && !studentSummaryData) {
+      setStudentSummaryData(summaryData.student_summary as StudentSummaryData);
+      setStudentSummaryLoading(false);
+    }
+    if (summaryData.attendance_summary && !attendanceSummaryData) {
+      setAttendanceSummaryData(summaryData.attendance_summary as AttendanceSummaryData);
+      setAttendanceSummaryLoading(false);
+    }
+    if (summaryData.income_expense_summary && !incomeExpenseData) {
+      setIncomeExpenseData(summaryData.income_expense_summary as IncomeExpenseSummaryData);
+      setIncomeExpenseLoading(false);
+    }
+    if (summaryData.income_summary && !incomeSummaryData) {
+      setIncomeSummaryData(summaryData.income_summary as CategorySummaryData);
+      setIncomeSummaryLoading(false);
+    }
+    if (summaryData.expense_summary && !expenseSummaryData) {
+      setExpenseSummaryData(summaryData.expense_summary as CategorySummaryData);
+      setExpenseSummaryLoading(false);
+    }
+    if (summaryData.fee_summary && !feeSummaryData) {
+      setFeeSummaryData(summaryData.fee_summary as FeeSummaryData);
+      setFeeSummaryLoading(false);
+    }
+  }, [summaryData]);
+
   const fetchUserRoles = useCallback(async () => {
     setUserRolesLoading(true);
     setUserRolesError(false);
     try {
-      const response = await DashboardAPI.GetUserRoles() as any;
-      setUserRolesData(response?.data ?? null);
+      const response = await DashboardAPI.GetUserRoles();
+      const payload = extractPayloadData<UserRolesData>(response);
+      setUserRolesData(payload ?? null);
     } catch {
       setUserRolesError(true);
       setUserRolesData(null);
@@ -395,13 +446,13 @@ export function AdminDashboard() {
     }
   }, []);
 
-  // ── Fetch: Student Summary ──
   const fetchStudentSummary = useCallback(async (date: string) => {
     setStudentSummaryLoading(true);
     setDistError(false);
     try {
-      const response = await DashboardAPI.GetStudentSummary(date) as any;
-      setStudentSummaryData(response?.data ?? null);
+      const response = await DashboardAPI.GetStudentSummary(date);
+      const payload = extractPayloadData<StudentSummaryData>(response);
+      setStudentSummaryData(payload ?? null);
     } catch {
       setDistError(true);
       setStudentSummaryData(null);
@@ -410,13 +461,13 @@ export function AdminDashboard() {
     }
   }, []);
 
-  // ── Fetch: Attendance Summary ──
   const fetchAttendanceSummary = useCallback(async (date: string) => {
     setAttendanceSummaryLoading(true);
     setClassError(false);
     try {
-      const response = await DashboardAPI.GetAttendanceSummary(date) as any;
-      setAttendanceSummaryData(response?.data ?? null);
+      const response = await DashboardAPI.GetAttendanceSummary(date);
+      const payload = extractPayloadData<AttendanceSummaryData>(response);
+      setAttendanceSummaryData(payload ?? null);
     } catch {
       setClassError(true);
       setAttendanceSummaryData(null);
@@ -425,12 +476,12 @@ export function AdminDashboard() {
     }
   }, []);
 
-  // ── Fetch: Income/Expense Summary ──
   const fetchIncomeExpense = useCallback(async (year: number) => {
     setIncomeExpenseLoading(true);
     try {
-      const response = await DashboardAPI.GetIncomeExpenseSummary(year) as any;
-      setIncomeExpenseData(response?.data ?? null);
+      const response = await DashboardAPI.GetIncomeExpenseSummary(year);
+      const payload = extractPayloadData<IncomeExpenseSummaryData>(response);
+      setIncomeExpenseData(payload ?? null);
     } catch {
       setIncomeExpenseData(null);
     } finally {
@@ -438,12 +489,12 @@ export function AdminDashboard() {
     }
   }, []);
 
-  // ── Fetch: Income Category ──
   const fetchIncomeSummary = useCallback(async (year: number, month: number | null) => {
     setIncomeSummaryLoading(true);
     try {
-      const response = await DashboardAPI.GetIncomeSummary(year, month ?? undefined) as any;
-      setIncomeSummaryData(response?.data ?? null);
+      const response = await DashboardAPI.GetIncomeSummary(year, month ?? undefined);
+      const payload = extractPayloadData<CategorySummaryData>(response);
+      setIncomeSummaryData(payload ?? null);
     } catch {
       setIncomeSummaryData(null);
     } finally {
@@ -451,12 +502,12 @@ export function AdminDashboard() {
     }
   }, []);
 
-  // ── Fetch: Expense Category ──
   const fetchExpenseSummary = useCallback(async (year: number, month: number | null) => {
     setExpenseSummaryLoading(true);
     try {
-      const response = await DashboardAPI.GetExpenseSummary(year, month ?? undefined) as any;
-      setExpenseSummaryData(response?.data ?? null);
+      const response = await DashboardAPI.GetExpenseSummary(year, month ?? undefined);
+      const payload = extractPayloadData<CategorySummaryData>(response);
+      setExpenseSummaryData(payload ?? null);
     } catch {
       setExpenseSummaryData(null);
     } finally {
@@ -464,12 +515,12 @@ export function AdminDashboard() {
     }
   }, []);
 
-  // ── Fetch: Fee Summary ──
   const fetchFeeSummary = useCallback(async (year: number) => {
     setFeeSummaryLoading(true);
     try {
-      const response = await DashboardAPI.GetFeeSummary(year) as any;
-      setFeeSummaryData(response?.data ?? null);
+      const response = await DashboardAPI.GetFeeSummary(year);
+      const payload = extractPayloadData<FeeSummaryData>(response);
+      setFeeSummaryData(payload ?? null);
     } catch {
       setFeeSummaryData(null);
     } finally {
@@ -477,14 +528,35 @@ export function AdminDashboard() {
     }
   }, []);
 
-  // ── Effects ──
-  useEffect(() => { fetchUserRoles(); }, [fetchUserRoles]);
-  useEffect(() => { fetchStudentSummary(distDate); }, [distDate, fetchStudentSummary]);
-  useEffect(() => { fetchAttendanceSummary(classDate); }, [classDate, fetchAttendanceSummary]);
-  useEffect(() => { fetchIncomeExpense(selectedYear); }, [selectedYear, fetchIncomeExpense]);
-  useEffect(() => { fetchIncomeSummary(selectedYear, selectedIncomeMonth); }, [selectedYear, selectedIncomeMonth, fetchIncomeSummary]);
-  useEffect(() => { fetchExpenseSummary(selectedYear, selectedExpenseMonth); }, [selectedYear, selectedExpenseMonth, fetchExpenseSummary]);
-  useEffect(() => { fetchFeeSummary(selectedYear); }, [selectedYear, fetchFeeSummary]);
+  const isInitialMount = React.useRef(true);
+
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    fetchStudentSummary(distDate);
+  }, [distDate]);
+
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    fetchAttendanceSummary(classDate);
+  }, [classDate]);
+
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    fetchIncomeExpense(selectedYear);
+    fetchIncomeSummary(selectedYear, selectedIncomeMonth);
+    fetchExpenseSummary(selectedYear, selectedExpenseMonth);
+    fetchFeeSummary(selectedYear);
+  }, [selectedYear]);
+
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    fetchIncomeSummary(selectedYear, selectedIncomeMonth);
+  }, [selectedIncomeMonth]);
+
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    fetchExpenseSummary(selectedYear, selectedExpenseMonth);
+  }, [selectedExpenseMonth]);
 
   // ── Extract available attendance times and set default ──
   useEffect(() => {

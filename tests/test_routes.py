@@ -104,6 +104,22 @@ def test_get_attendance(teacher_token):
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
+
+def test_attendance_show_all_returns_paginated_payload(teacher_token):
+    headers = {"Authorization": f"Bearer {teacher_token}"}
+    response = client.get(
+        "/mark_attendance/show_all_attendance?page=1&page_size=5",
+        headers=headers
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, dict)
+    assert "data" in payload
+    assert "total" in payload
+    assert "page" in payload
+    assert "page_size" in payload
+    assert "total_pages" in payload
+
 # Test Class Names Routes
 def test_create_class(admin_token):
     headers = {"Authorization": f"Bearer {admin_token}"}
@@ -218,3 +234,53 @@ def test_forbidden_access():
         headers=headers
     )
     assert response.status_code == 403
+
+
+def test_fee_filter_returns_paginated_payload(admin_token):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = client.post(
+        "/fee/filter/?fee_year=2026&page=1&page_size=5",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, dict)
+    assert "data" in payload
+    assert "total" in payload
+    assert "page" in payload
+    assert "page_size" in payload
+    assert "total_pages" in payload
+
+
+def test_dashboard_summary_endpoint_returns_combined_payload(admin_token):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = client.get(
+        "/dashboard/summary?year=2026",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, dict)
+    assert "user_roles" in payload
+    assert "student_summary" in payload
+    assert "attendance_summary" in payload
+    assert "income_expense_summary" in payload
+    assert "fee_summary" in payload
+    assert "income_summary" in payload
+    assert "expense_summary" in payload
+
+
+def test_expense_filter_returns_paginated_payload(admin_token):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = client.get(
+        "/expenses/filter-by-category/0?page=1&page_size=5",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, dict)
+    assert "data" in payload
+    assert "total" in payload
+    assert "page" in payload
+    assert "page_size" in payload
+    assert "total_pages" in payload

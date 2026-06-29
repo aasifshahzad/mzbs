@@ -33,37 +33,36 @@ async def get_all_fees(
     current_user: Annotated[User, Depends(require_admin_accountant_fee_manager())]
 ):
     """Retrieve all student fee records (Authenticated users)."""
-    fees = db.exec(select(Fee)).all()
-    
+    from sqlalchemy import outerjoin
+
+    stmt = (
+        select(Fee, Students, ClassNames)
+        .outerjoin(Students, Fee.student_id == Students.student_id)
+        .outerjoin(ClassNames, Fee.class_id == ClassNames.class_name_id)
+    )
+    results = db.exec(stmt).all()
+
     response_list = []
-    for fee in fees:
-        # If student_id is NULL, it means the student was deleted but paid fee is kept
-        if fee.student_id is None:
+    for fee, student, class_obj in results:
+        if student is None:
             student_name = "Unknown [Deleted]"
             father_name = "N/A"
         else:
-            student = await get_student_by_id(db, fee.student_id)
-            student_name = student.student_name if student else None
-            father_name = student.father_name if student else None
-        
-        class_name = db.exec(
-            select(ClassNames)
-            .where(ClassNames.class_name_id == fee.class_id)
-        ).first()
-        
-        response = FeeResponse(
+            student_name = student.student_name
+            father_name = student.father_name
+
+        response_list.append(FeeResponse(
             fee_id=fee.fee_id,
             created_at=fee.created_at,
             student_name=student_name,
             father_name=father_name,
-            class_name=class_name.class_name if class_name else None,
+            class_name=class_obj.class_name if class_obj else None,
             fee_amount=fee.fee_amount,
             fee_month=fee.fee_month,
             fee_year=str(fee.fee_year),
             fee_status=fee.fee_status
-        )
-        response_list.append(response)
-    
+        ))
+
     return response_list
 
 @fee_router.post("/add_fee", response_model=FeeResponse, status_code=status.HTTP_201_CREATED)
@@ -217,7 +216,7 @@ async def update_fee(
             detail=f"Error updating fee record: {str(e)}"
         )
 
-@fee_router.post("/filter/", response_model=List[FilterPaidUnpaid])
+@fee_router.post("/filter/", response_model=dict)
 async def filter_fees(
     db: Annotated[Session, Depends(get_session)],
     current_user: Annotated[User, Depends(require_admin_accountant_fee_manager())],
@@ -225,8 +224,8 @@ async def filter_fees(
     fee_month: Optional[str] = Query(None, description="Filter by fee month"),
     fee_year: Optional[str] = Query(None, description="Filter by fee year"),
     fee_status: Optional[str] = Query(None, description="Filter by fee status"),
-    skip: int = Query(0, description="Skip records"),
-    limit: int = Query(100, description="Limit records per page"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=50, description="Records per page"),
     sort_by: Optional[str] = Query(None, description="Sort by field")
 ):
     """
@@ -612,10 +611,17 @@ async def filter_fees(
                 ))
         # ── Sort by class name ────────────────────────────────────────────────
         filtered_response.sort(key=lambda x: x.class_name)
-        
+
         # ── Pagination ────────────────────────────────────────────────────────
-        filtered_response = filtered_response[skip:skip + limit]
-        return filtered_response
+        total = len(filtered_response)
+        page_data = filtered_response[(page - 1) * page_size : page * page_size]
+        return {
+            "data": [r.model_dump() for r in page_data],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()

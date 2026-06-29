@@ -23,6 +23,22 @@ import {
 } from "@/components/ui/table";
 import { Header } from "../dashboard/Header";
 
+const extractArrayData = <T,>(response: unknown): T[] => {
+  const payload = (response as { data?: unknown }).data;
+
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const nested = (payload as { data?: unknown }).data;
+    if (Array.isArray(nested)) {
+      return nested as T[];
+    }
+  }
+
+  return [];
+};
 
 interface ClassNameResponse {
   class_name_id: number;
@@ -56,6 +72,10 @@ const ViewFees: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [feesData, setFeesData] = useState<FeeData[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pageSize] = useState(10);
+  const [activeFilters, setActiveFilters] = useState<GetFeeModel | null>(null);
 
   useEffect(() => {
     GetClassName();
@@ -64,19 +84,15 @@ const ViewFees: React.FC = () => {
   const GetClassName = async () => {                          
     setIsLoading(true);
     try {
-      const response = (await API2.Get()) as { data: ClassNameResponse[] };
-      if (response.data && Array.isArray(response.data)) {
-        response.data.unshift({
-          class_name_id: 0,
-          class_name: "All",
-        });
-        setClassNameList(
-          response.data.map((item: ClassNameResponse) => ({
-            id: item.class_name_id,
-            title: item.class_name,
-          }))
-        );
-      }
+      const response = await API2.Get();
+      const classes = extractArrayData<ClassNameResponse>(response);
+      const allClasses = [{ class_name_id: 0, class_name: "All" }, ...classes];
+      setClassNameList(
+        allClasses.map((item) => ({
+          id: item.class_name_id,
+          title: item.class_name,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching class names:", error);
     } finally {
@@ -84,44 +100,57 @@ const ViewFees: React.FC = () => {
     }
   };
 
-const handleGetFees = async (data: GetFeeModel) => {
+const handleGetFees = async (data: GetFeeModel, page = 1) => {
   try {
-    // Validate that year is selected (year is now mandatory)
     if (!data.fee_year) {
       toast.error("Please select a year");
       return;
     }
 
-    // Use Filter API with Class, Month, Year, Status filters
+    setIsLoading(true);
+    setCurrentPage(page);
+    setActiveFilters(data);
+
     const response = await API3.Filter({
-      // class_id: 0 is the "All" option prepended in GetClassName()
       class_id: data.class_id && Number(data.class_id) !== 0
         ? Number(data.class_id)
         : undefined,
-      // "all" string = skip this filter; empty string = skip this filter
       fee_month: data.fee_month && data.fee_month !== "all"
         ? data.fee_month
         : undefined,
-      // Year is now mandatory, always send it
       fee_year: data.fee_year,
-      // "all" or empty string = skip fee_status filter
       fee_status: data.fee_status && data.fee_status !== "all"
         ? data.fee_status
         : undefined,
+      page,
+      page_size: pageSize,
     });
 
-    if (Array.isArray(response.data) && response.data.length === 0) {
+    const payload = response?.data;
+    const records = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+    const total = payload?.total ?? records.length;
+    const totalPagesFromPayload = payload?.total_pages ?? Math.max(1, Math.ceil(total / pageSize));
+
+    if (records.length === 0) {
       toast.error("No data found");
       setFeesData([]);
-    } else if (Array.isArray(response.data)) {
-      setFeesData(response.data as FeeData[]);
-      toast.success("Fees data fetched successfully");
+      setTotalPages(1);
     } else {
-      toast.error("Unexpected response format");
+      setFeesData(records as FeeData[]);
+      setTotalPages(totalPagesFromPayload);
+      toast.success("Fees data fetched successfully");
     }
   } catch (error) {
     console.error("Error fetching fees:", error);
     toast.error("Failed to fetch fees");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const handlePageChange = (page: number) => {
+  if (activeFilters) {
+    handleGetFees(activeFilters, page);
   }
 };
 
@@ -163,7 +192,7 @@ const filteredFeesData = feesData.filter((fee) => {
       <Header value="View Fees" />
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-3">
         <form
-          onSubmit={handleSubmit(handleGetFees)}
+          onSubmit={handleSubmit((data) => handleGetFees(data, 1))}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 lg:items-end gap-3 sm:gap-4 p-3 sm:p-4"
         >
           <div className="col-span-1">
@@ -252,6 +281,32 @@ const filteredFeesData = feesData.filter((fee) => {
                 <Printer size={16} />
                 Print
               </button>
+            </div>
+
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 no-print">
+              <p className="text-sm text-gray-500">
+                Page {currentPage} of {totalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1 || isLoading}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages || isLoading}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
 
             {/* Search Bar */}

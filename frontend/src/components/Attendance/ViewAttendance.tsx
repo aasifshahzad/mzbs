@@ -39,10 +39,8 @@ import {
 import {
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel,
   useReactTable,
   type ColumnDef,
-  type PaginationState,
 } from "@tanstack/react-table";
 
 import {
@@ -105,6 +103,23 @@ interface APIError {
   };
 }
 
+const extractArrayData = <T,>(response: unknown): T[] => {
+  const payload = (response as { data?: unknown }).data;
+
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const nestedPayload = (payload as { data?: unknown }).data;
+    if (Array.isArray(nestedPayload)) {
+      return nestedPayload as T[];
+    }
+  }
+
+  return [];
+};
+
 const AttendanceTable: React.FC = () => {
   const {
     register,
@@ -138,17 +153,18 @@ const AttendanceTable: React.FC = () => {
   const [studentsList, setStudentsList] = useState<SelectComponentOption[]>([]);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 15,
-  });
+  const [pageSize] = useState(15);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [activeFilters, setActiveFilters] = useState<FilteredAttendance | null>(null);
 
   // ── Fetch Records ────────────────────────────────────────────────────────────
   // Define HandleSubmitForStudentGet first so handleAttendanceUpdate can reference it
   const HandleSubmitForStudentGet = useCallback(
-    async (formData: FilteredAttendance) => {
+    async (formData: FilteredAttendance, page = 1) => {
       setAttendanceRecords([]);
-      setPagination({ pageIndex: 0, pageSize: 15 }); // Reset pagination when fetching new records
+      setCurrentPage(page);
       try {
         setIsLoading(true);
         const filter: FilteredAttendance = {
@@ -161,48 +177,60 @@ const AttendanceTable: React.FC = () => {
           attendance_value_id: Number(formData.attendance_value_id) || 0,
         };
 
-        const response = await API.GetbyFilter(filter);
+        setActiveFilters(filter);
+        const response = await API.GetbyFilter(filter, page, pageSize);
 
         if (response.status === 200) {
-          const records = response.data as unknown as AttendanceRecord[];
-          if (records && Array.isArray(records) && records.length > 0) {
+          const payload = response?.data ?? {};
+          const records = Array.isArray(payload?.data)
+            ? (payload.data as AttendanceRecord[])
+            : extractArrayData<AttendanceRecord>(response);
+          const total = Number(payload?.total ?? records.length ?? 0);
+          const pages = Number(payload?.total_pages ?? Math.max(1, Math.ceil(total / pageSize)));
+
+          if (records.length > 0) {
             toast.success(`Found ${records.length} records`, {
               position: "bottom-center",
               duration: 3000,
             });
             setAttendanceRecords(records);
+            setTotalRecords(total);
+            setTotalPages(pages);
           } else {
             toast.info("No records match the selected criteria", {
               position: "bottom-center",
               duration: 3000,
             });
             setAttendanceRecords([]);
+            setTotalRecords(0);
+            setTotalPages(1);
           }
         } else {
           toast.error(`Error: ${response.status} - ${response.statusText}`);
+          setTotalRecords(0);
+          setTotalPages(1);
         }
       } catch (error: unknown) {
         if (error && typeof error === "object" && "response" in error) {
           const apiError = error as APIError;
           const errorMessage = apiError.response?.data?.message || "Failed to fetch records";
-          console.error("API Error:", errorMessage);
           toast.error(errorMessage, {
             position: "bottom-center",
             duration: 3000,
           });
         } else if (error instanceof Error) {
-          console.error("Error:", error.message);
           toast.error("An unexpected error occurred. Please try again.", {
             position: "bottom-center",
             duration: 3000,
           });
         } else {
-          console.error("Unknown error:", error);
           toast.error("An unexpected error occurred. Please try again.", {
             position: "bottom-center",
             duration: 3000,
           });
         }
+        setTotalRecords(0);
+        setTotalPages(1);
       } finally {
         setIsLoading(false);
       }
@@ -219,8 +247,8 @@ const AttendanceTable: React.FC = () => {
     const currentFilters = getValues();
     // Restore student_id from combobox state (not registered in RHF)
     currentFilters.student_id = Number(value) || 0;
-    await HandleSubmitForStudentGet(currentFilters);
-  }, [getValues, value, HandleSubmitForStudentGet]);
+    await HandleSubmitForStudentGet(currentFilters, currentPage);
+  }, [getValues, value, currentPage, HandleSubmitForStudentGet]);
 
   const handleDeleteAttendance = useCallback(
     async (attendanceId: number) => {
@@ -255,7 +283,7 @@ const AttendanceTable: React.FC = () => {
         // FIX 5: global row number across pages
         cell: ({ row }) => (
           <span className="font-medium">
-            {pagination.pageIndex * pagination.pageSize + row.index + 1}
+            {(currentPage - 1) * pageSize + row.index + 1}
           </span>
         ),
       },
@@ -356,7 +384,7 @@ const AttendanceTable: React.FC = () => {
         ),
       },
     ],
-    [pagination.pageIndex, pagination.pageSize, handleAttendanceUpdate, handleDeleteAttendance]
+    [currentPage, pageSize, handleAttendanceUpdate, handleDeleteAttendance]
   );
 
   // FIX 2: dropdowns load exactly once on mount — no dependency on formRefresh
@@ -368,11 +396,11 @@ const AttendanceTable: React.FC = () => {
   const GetStudents = async () => {
     setIsLoading(true);
     try {
-      const response = (await API5.Get()) as { data: StudentResponse[] };
-      // Add "All" option at the beginning
+      const response = await API5.Get();
+      const students = extractArrayData<StudentResponse>(response);
       const allStudents = [
         { student_id: 0, student_name: "All Students" },
-        ...response.data,
+        ...students,
       ];
       setStudentsList(
         allStudents.map((student) => ({
@@ -390,20 +418,18 @@ const AttendanceTable: React.FC = () => {
   const GetClassName = async () => {
     try {
       setIsLoading(true);
-      const response = (await API2.Get()) as { data: ClassNameResponse[] };
-      // FIX 3: create new array instead of mutating response.data
+      const response = await API2.Get();
+      const classes = extractArrayData<ClassNameResponse>(response);
       const allClasses = [
         { class_name_id: 0, class_name: "All" },
-        ...response.data,
+        ...classes,
       ];
-      if (allClasses && Array.isArray(allClasses)) {
-        setClassNameList(
-          allClasses.map((item: ClassNameResponse) => ({
-            id: item.class_name_id,
-            title: item.class_name,
-          }))
-        );
-      }
+      setClassNameList(
+        allClasses.map((item: ClassNameResponse) => ({
+          id: item.class_name_id,
+          title: item.class_name,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching class names:", error);
     }
@@ -413,22 +439,18 @@ const AttendanceTable: React.FC = () => {
   const GetClassTime = async () => {
     try {
       setIsLoading(true);
-      const response = (await API13.Get()) as {
-        data: AttendanceTimeResponse[];
-      };
-      // FIX 3: create new array instead of mutating response.data
+      const response = await API13.Get();
+      const times = extractArrayData<AttendanceTimeResponse>(response);
       const allTimes = [
         { attendance_time_id: 0, attendance_time: "All" },
-        ...response.data,
+        ...times,
       ];
-      if (allTimes && Array.isArray(allTimes)) {
-        setClassTimeList(
-          allTimes.map((item: AttendanceTimeResponse) => ({
-            id: item.attendance_time_id,
-            title: item.attendance_time,
-          }))
-        );
-      }
+      setClassTimeList(
+        allTimes.map((item: AttendanceTimeResponse) => ({
+          id: item.attendance_time_id,
+          title: item.attendance_time,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching class times:", error);
     }
@@ -438,22 +460,18 @@ const AttendanceTable: React.FC = () => {
   const GetTeacherName = async () => {
     try {
       setIsLoading(true);
-      const response = (await API4.Get()) as unknown as {
-        data: TeacherResponse[];
-      };
-      // FIX 3: create new array instead of mutating response.data
+      const response = await API4.Get();
+      const teachers = extractArrayData<TeacherResponse>(response);
       const allTeachers = [
         { teacher_name_id: 0, teacher_name: "All" },
-        ...response.data,
+        ...teachers,
       ];
-      if (allTeachers && Array.isArray(allTeachers)) {
-        setTeacherNameList(
-          allTeachers.map((item: TeacherResponse) => ({
-            id: item.teacher_name_id,
-            title: item.teacher_name,
-          }))
-        );
-      }
+      setTeacherNameList(
+        allTeachers.map((item: TeacherResponse) => ({
+          id: item.teacher_name_id,
+          title: item.teacher_name,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching teachers:", error);
     }
@@ -469,16 +487,16 @@ const AttendanceTable: React.FC = () => {
   // );
   // const totalPages = Math.ceil(attendanceRecords.length / recordsPerPage);
 
-  // Add table instance
+  const handlePageChange = (page: number) => {
+    if (!activeFilters) return;
+    const nextPage = Math.min(Math.max(1, page), totalPages);
+    void HandleSubmitForStudentGet(activeFilters, nextPage);
+  };
+
   const table = useReactTable({
     data: attendanceRecords,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    state: {
-      pagination,
-    },
-    onPaginationChange: setPagination,
   });
 
   return (
@@ -491,7 +509,7 @@ const AttendanceTable: React.FC = () => {
         parent's height, breaking overflow-y-auto. min-h-0 removes that floor.
       */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <form onSubmit={handleSubmit((data) => HandleSubmitForStudentGet(data as FilteredAttendance))}>
+        <form onSubmit={handleSubmit((data) => HandleSubmitForStudentGet(data as FilteredAttendance, 1))}>
           
           {/*
             ✅ FIX 3: Filter bar is sticky so it stays visible while scrolling
@@ -510,7 +528,7 @@ const AttendanceTable: React.FC = () => {
                 </div>
                 {attendanceRecords.length > 0 && (
                   <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-800">
-                    {attendanceRecords.length} Records Found
+                    {totalRecords || attendanceRecords.length} Records Found
                   </span>
                 )}
               </div>
@@ -726,6 +744,34 @@ const AttendanceTable: React.FC = () => {
                 </button>
               </div>
 
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 no-print">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Page {currentPage} of {totalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1 || isLoading}
+                  >
+                    <ChevronLeft className="mr-1 h-4 w-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages || isLoading}
+                  >
+                    Next
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
               {/*
                 ✅ FIX 4: overflow-x-auto wrapper so the table scrolls
                 horizontally on narrow screens instead of overflowing or
@@ -817,49 +863,7 @@ const AttendanceTable: React.FC = () => {
                 </Table>
               </div>
               
-              {/* Improved Pagination Controls */}
-              {attendanceRecords.length > 0 && (
-                <div className="border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-3">
-                    <div className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 order-2 sm:order-1">
-                      Showing{" "}
-                      <span className="font-medium">
-                        {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
-                      </span>{" "}
-                      -{" "}
-                      <span className="font-medium">
-                        {Math.min(
-                          (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                          attendanceRecords.length
-                        )}
-                      </span>{" "}
-                      of <span className="font-medium">{attendanceRecords.length}</span>
-                    </div>
-                    <div className="flex space-x-1 sm:space-x-2 order-1 sm:order-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 sm:h-9 sm:w-9 p-0"
-                        onClick={() => table.previousPage()}
-                        disabled={!table.getCanPreviousPage()}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 sm:h-9 sm:w-9 p-0"
-                        onClick={() => table.nextPage()}
-                        disabled={!table.getCanNextPage()}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
+
             </>
           )}
 

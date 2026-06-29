@@ -8,7 +8,7 @@ import { Header } from "@/components/dashboard/Header";
 import { toast } from "sonner";
 import { IncomeAPI as API } from "@/api/Income/IncomeAPI";
 import { IncomeCategory, AddIncomeModel } from "@/models/income/income";
-import { AxiosResponse } from "axios";
+import { extractArrayData } from "@/utils/apiResponse";
 
 const AddIncome = () => {
   const {
@@ -28,13 +28,12 @@ const AddIncome = () => {
   const getCategories = async () => {
     setIsLoading(true);
     try {
-      const res: AxiosResponse<IncomeCategory[]> = await API.GetIncomeCategory();
-      const data = res.data.map((item: IncomeCategory) => ({
+      const res = await API.GetIncomeCategory();
+      const data = extractArrayData<IncomeCategory>(res).map((item) => ({
         income_cat_name_id: item.income_cat_name_id,
         income_cat_name: item.income_cat_name,
         created_at: item.created_at,
       }));
-      // console.log("Categories:", data);
       setIncomeCategory(data); // Ensure this is an array
     } catch (error) {
       console.error("Error fetching income categories:", error);

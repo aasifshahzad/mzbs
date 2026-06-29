@@ -10,7 +10,7 @@ from schemas.admission_model import (
 )
 from schemas.attendance_model import Attendance
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg2 import IntegrityError
 from sqlmodel import Session, select
 from typing import Annotated, List

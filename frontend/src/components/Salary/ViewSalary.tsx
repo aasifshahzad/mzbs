@@ -60,21 +60,16 @@ const ViewSalary = () => {
 
       // Get all teachers with salaries
       const teacherSalaries = await SalaryAPI.getAllTeacherSalaries();
-      console.log("Teachers with salary records:", teacherSalaries.length);
 
       // Get unique teacher IDs
       const uniqueTeacherIds = Array.from(
         new Set(teacherSalaries.map(s => s.teacher_id))
       );
 
-      console.log("Unique teacher IDs:", uniqueTeacherIds);
-
       // Fetch summary for each teacher using the new endpoint
       const summaryPromises = uniqueTeacherIds.map(async (teacherId) => {
         try {
-          console.log(`Fetching summary for teacher ${teacherId}...`);
           const apiSummary = await SalaryAPI.getTeacherSalarySummary(teacherId);
-          console.log(`Summary for teacher ${teacherId}:`, apiSummary);
           
           return {
             teacherId: apiSummary.teacher_id,
@@ -89,7 +84,6 @@ const ViewSalary = () => {
             remainingBalance: apiSummary.remaining,
           };
         } catch (error) {
-          console.error(`Error fetching summary for teacher ${teacherId}:`, error);
           // Return a basic summary even if the API call fails
           const teacherSalary = teacherSalaries.find(s => s.teacher_id === teacherId);
           if (teacherSalary) {
@@ -115,12 +109,9 @@ const ViewSalary = () => {
 
       summaryList.sort((a, b) => a.teacherName.localeCompare(b.teacherName));
 
-      console.log("Final summary list:", summaryList.length, summaryList);
-
       setSummaries(summaryList);
       setFilteredSummaries(summaryList);
     } catch (error) {
-      console.error("Error fetching salary data:", error);
       toast.error("Failed to load salary information");
       setSummaries([]);
       setFilteredSummaries([]);

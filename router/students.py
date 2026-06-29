@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from router.class_names import read_classname
 from schemas.class_names_model import ClassNames
 from sqlmodel import Session, select
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from typing import List, Optional
 from typing import Annotated
@@ -241,18 +242,31 @@ def delete_student(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@students_router.get("/all_students/", response_model=List[StudentsResponse])
+@students_router.get("/all_students/", response_model=dict)
 def all_students(
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[Session, Depends(get_session)]
+    session: Annotated[Session, Depends(get_session)],
+    page: int = Query(10, ge=1, le=50, description="Page number"),
+    page_size: int = Query(10, ge=1, le=50, description="Records per page"),
 ):
     if current_user.role == UserRole.USER:
         raise HTTPException(
             status_code=403,
             detail="Only teachers and administrators can view student records"
         )
-    students = session.exec(select(Students)).all()
-    return students
+    total = session.exec(select(func.count(Students.student_id))).one()
+    students = session.exec(
+        select(Students)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return {
+        "data": students,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
 
 
 @students_router.get("/by_class_name/", response_model=List[StudentsResponse])

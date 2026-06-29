@@ -8,7 +8,7 @@ import { Header } from "@/components/dashboard/Header";
 import { toast } from "sonner";
 import { ExpenseAPI as API } from "@/api/Expense/ExpenseAPI";
 import { AddExpenseModel, ExpenseCategory } from "@/models/expense/expense";
-import { AxiosResponse } from "axios";
+import { extractArrayData } from "@/utils/apiResponse";
 
 const AddExpense = () => {
   const {
@@ -28,12 +28,11 @@ const AddExpense = () => {
   const getCategories = async () => {
     setIsLoading(true);
     try {
-      const res: AxiosResponse<ExpenseCategory[]> = await API.GetExpenseCategory();
-      const data = res.data.map((item: ExpenseCategory) => ({
+      const res = await API.GetExpenseCategory();
+      const data = extractArrayData<ExpenseCategory>(res).map((item) => ({
         expense_cat_name_id: item.expense_cat_name_id,
         expense_cat_name: item.expense_cat_name,
       }));
-      // console.log("Categories:", data);
       setExpenseCategory(data); // Ensure this is an array
     } catch (error) {
       console.error("Error fetching expense categories:", error);

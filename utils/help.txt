@@ -12,5 +12,31 @@ student_city
 father_name
 
 
+For Day 3 I need the following frontend files:
+Layout & Setup
+
+frontend/src/app/layout.tsx — to add QueryClientProvider
+
+Dashboard
+
+frontend/src/components/dashboard/AdminDashboard.tsx — has the 7 concurrent useEffect hooks to fix
+
+List page components — these need hooks + pagination UI:
+
+frontend/src/components/Students/StudentTable.tsx
+frontend/src/components/Fees/ViewFees.tsx
+frontend/src/components/Attendance/ViewAttendance.tsx
+frontend/src/components/Income/ViewIncome.tsx
+frontend/src/components/Expense/viewExpense.tsx
+frontend/src/components/Salary/SalaryLogs.tsx
+
+API files — to update response shape handling (response.data.data instead of response.data):
+
+frontend/src/api/Student/StudentsAPI.tsx
+frontend/src/api/Attendance/AttendanceAPI.ts
+frontend/src/api/Salary/SalaryAPI.ts
 
 
+
+SalaryLogs.tsx
+ViewSalary.tsx

@@ -75,23 +75,29 @@ def _eager_select() -> any:
 
 # ─── Show All (paginated) ─────────────────────────────────────────────────────
 
-@mark_attendance_router.get("/show_all_attendance", response_model=List[FilteredAttendanceResponse])
-def get_all_attendance(                                    # FIX 1: unique function name
+@mark_attendance_router.get("/show_all_attendance", response_model=dict)
+def get_all_attendance(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
-    skip: int = Query(default=0, ge=0, description="Records to skip"),
-    limit: int = Query(default=50, ge=1, le=500, description="Max records to return"),  # FIX 2: pagination
+    page: int = Query(default=1, ge=1, description="Page number"),
+    page_size: int = Query(default=10, ge=1, le=50, description="Records per page"),
 ):
     """View all attendance records with role-based access (paginated)."""
     _require_not_user(current_user, "view attendance records")
 
-    stmt = _eager_select().offset(skip).limit(limit)
+    from sqlalchemy import func
+    total = session.exec(select(func.count(Attendance.attendance_id))).one()
+
+    stmt = _eager_select().offset((page - 1) * page_size).limit(page_size)
     records = session.exec(stmt).unique().all()
 
-    if not records:
-        raise HTTPException(status_code=404, detail="No attendance records found")
-
-    return [_build_response(att) for att in records]
+    return {
+        "data": [_build_response(att) for att in records],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
 
 
 # ─── Add Single Attendance ────────────────────────────────────────────────────
@@ -265,7 +271,7 @@ def update_attendance(
 
 # ─── Filter by IDs ───────────────────────────────────────────────────────────
 
-@mark_attendance_router.get("/filter_attendance_by_ids", response_model=List[FilteredAttendanceResponse])
+@mark_attendance_router.get("/filter_attendance_by_ids", response_model=dict)
 def filter_attendance_by_ids(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Session = Depends(get_session),
@@ -276,6 +282,8 @@ def filter_attendance_by_ids(
     student_id: Optional[int] = Query(None, description="Filter by Student ID"),
     father_name: Optional[str] = Query(None, description="Filter by Father's Name"),
     attendance_value_id: Optional[int] = Query(None, description="Filter by Attendance Value ID"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=50),
 ):
     """Filter attendance by IDs with role-based access."""
     _require_not_user(current_user, "view attendance records")
@@ -304,13 +312,22 @@ def filter_attendance_by_ids(
         query = query.where(Attendance.attendance_value_id == attendance_value_id)
 
     records = session.exec(query).unique().all()
+    total = len(records)
 
-    if not records:
+    paginated = records[(page - 1) * page_size : page * page_size]
+
+    if not paginated:
         raise HTTPException(
             status_code=404, detail="No attendance records found matching the criteria"
         )
 
-    return [_build_response(att) for att in records]
+    return {
+        "data": [_build_response(att) for att in paginated],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
 
 
 # ─── Filter by Names ─────────────────────────────────────────────────────────

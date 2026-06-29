@@ -1,7 +1,8 @@
 from typing import List, Annotated, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from db import get_session
@@ -68,23 +69,38 @@ def create_expense(
         amount=db_expense.amount,
     )
 
-@expense_router.get("/expenses-all/", response_model=List[ExpenseResponse])
-def read_expenses(user: Annotated[User, Depends(require_admin_accountant())], session: Session = Depends(get_session)):
-    expenses = session.exec(select(Expense)).all()
-    # Map category to its string representation
-    return [
-        ExpenseResponse(
-            id=expense.id,
-            created_at=expense.created_at,
-            recipt_number=expense.recipt_number,
-            date=expense.date,
-            category=expense.category.expense_cat_name if expense.category else None,
-            to_whom=expense.to_whom,
-            description=expense.description,
-            amount=expense.amount,
-        )
-        for expense in expenses
-    ]
+@expense_router.get("/expenses-all/", response_model=dict)
+def read_expenses(
+    user: Annotated[User, Depends(require_admin_accountant())],
+    session: Session = Depends(get_session),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+):
+    total = session.exec(select(func.count(Expense.id))).one()
+    expenses = session.exec(
+        select(Expense)
+            .order_by(Expense.date.desc(), Expense.id.desc())
+    ).all()
+
+    return {
+        "data": [
+            ExpenseResponse(
+                id=e.id,
+                created_at=e.created_at,
+                recipt_number=e.recipt_number,
+                date=e.date,
+                category=e.category.expense_cat_name if e.category else None,
+                to_whom=e.to_whom,
+                description=e.description,
+                amount=e.amount,
+            )
+            for e in expenses
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
 
 @expense_router.get("/{expense_id}", response_model=ExpenseResponse)
 def read_expense(user: Annotated[User, Depends(require_admin_accountant())],expense_id: int, session: Session = Depends(get_session)):
@@ -146,23 +162,26 @@ def delete_expense(user: Annotated[User, Depends(require_admin())],expense_id: i
     session.commit()
     return {"message": "Expense deleted successfully"}
 
-@expense_router.get("/filter-by-category/{category_id}", response_model=List[ExpenseResponse])
+@expense_router.get("/filter-by-category/{category_id}", response_model=dict)
 def filter_expense_by_category(
     category_id: int,
     user: Annotated[User, Depends(require_admin_accountant())],
     session: Session = Depends(get_session),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
 ):
-    """Compatibility endpoint for older frontend callers (/filter-by-category/{id})."""
+    """Return paginated expense records for a category filter or all categories when category_id is 0."""
     try:
-        if category_id == 0:
-            expenses = session.exec(select(Expense)).all()
-        else:
-            expenses = session.exec(
-                select(Expense).where(Expense.category_id == category_id)
-            ).all()
+        query = select(Expense)
+        if category_id != 0:
+            query = query.where(Expense.category_id == category_id)
 
-        if not expenses:
-            return []
+        total = session.exec(select(func.count()).select_from(query.subquery())).one()
+        expenses = session.exec(
+            query.order_by(Expense.date.desc(), Expense.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
 
         result = []
         for expense in expenses:
@@ -179,6 +198,13 @@ def filter_expense_by_category(
                     amount=expense.amount,
                 )
             )
-        return result
+
+        return {
+            "data": result,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error filtering expense records: {str(e)}")

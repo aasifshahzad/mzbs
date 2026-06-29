@@ -12,7 +12,7 @@ export namespace ClassNameAPI {
       );
       return response;
     } catch (error) {
-      return error;
+      throw error;
     }
   };
 
@@ -31,7 +31,6 @@ export namespace ClassNameAPI {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
       console.error("API Error:", error);

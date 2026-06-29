@@ -15,6 +15,23 @@ import { LoaderIcon } from "lucide-react";
 import { Select } from "../Select";
 import { ClassNameAPI as API } from "@/api/Classname/ClassNameAPI";
 
+const extractArrayData = <T,>(response: unknown): T[] => {
+  const payload = (response as { data?: unknown }).data;
+
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const nested = (payload as { data?: unknown }).data;
+    if (Array.isArray(nested)) {
+      return nested as T[];
+    }
+  }
+
+  return [];
+};
+
 interface Inputs {
   Sname: string;
   fname: string;
@@ -49,29 +66,28 @@ const AddNewStudent = () => {
   const [loading, setLoading] = useState(false);
   const [classNameList, setClassNameList] = useState<{ id: number; title: string }[]>([]);
 
-  const onSubmit = (data: Inputs) => {
+  const onSubmit = async (data: Inputs) => {
     setLoading(true);
-    if (data) {
-      setLoading(false);
+    try {
+      await Promise.resolve(data);
       setOpen(false);
       reset();
       toast("Student Added Successfully!");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-    console.log("form Data", data);
   };
 
   const GetClassName = async () => {
     try {
-      const response = (await API.Get()) as { data: ClassNameResponse[] };
-      if (response.data) {
-        setClassNameList(
-          response.data.map((item) => ({
-            id: item.class_name_id,
-            title: item.class_name,
-          }))
-        );
-      }
+      const response = await API.Get();
+      const classes = extractArrayData<ClassNameResponse>(response);
+      setClassNameList(
+        classes.map((item) => ({
+          id: item.class_name_id,
+          title: item.class_name,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching class names:", error);
     }

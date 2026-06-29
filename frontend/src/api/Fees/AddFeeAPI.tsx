@@ -1,7 +1,6 @@
 import AxiosInstance from "@/api/axiosInterceptorInstance";
 import {AddFeeModel} from "@/models/Fees/Fee";
 
-// Export as a single API object
 export const FeeAPI = {
   Create: async (AddFee: AddFeeModel) => {
     try {
@@ -14,15 +13,12 @@ export const FeeAPI = {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
-      throw error; 
+      throw error;
     }
   },
 
-  // New API for class fee status
   GetClassFeeStatus: async ({
     class_id,
     fee_month,
@@ -38,24 +34,26 @@ export const FeeAPI = {
       );
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },
 
-  // New API for filtering with all 5 filter parameters
   Filter: async ({
     student_id,
     class_id,
     fee_month,
     fee_year,
     fee_status,
+    page,
+    page_size,
   }: {
     student_id?: number;
     class_id?: number;
     fee_month?: string;
     fee_year?: string;
     fee_status?: string;
+    page?: number;
+    page_size?: number;
   }) => {
     try {
       const params = new URLSearchParams();
@@ -64,18 +62,18 @@ export const FeeAPI = {
       if (fee_month)  params.append("fee_month",  fee_month);
       if (fee_year)   params.append("fee_year",   fee_year);
       if (fee_status) params.append("fee_status", fee_status);
+      if (page)       params.append("page",       String(page));
+      if (page_size)  params.append("page_size",  String(page_size));
 
       const response = await AxiosInstance.post(
         `/fee/filter/?${params.toString()}`
       );
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },
 
-  // Update fee record - only paid fees can be edited
   Update: async (
     fee_id: number,
     updateData: {
@@ -94,24 +92,19 @@ export const FeeAPI = {
           },
         }
       );
-      console.log("Update Response:", response);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },
 
-  // Delete fee record
   Delete: async (fee_id: number) => {
     try {
       const response = await AxiosInstance.delete(
         `/fee/delete_fee/${fee_id}`
       );
-      console.log("Delete Response:", response);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },

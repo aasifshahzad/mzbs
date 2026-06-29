@@ -1,5 +1,6 @@
 from datetime import datetime, date
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlmodel import Session, select, delete
 from typing import List, Annotated
 
@@ -168,14 +169,22 @@ salary_router = APIRouter(
 # TEACHER SALARY MANAGEMENT (Base Salary Configuration)
 # ============================================================================
 
-@salary_router.get("/teacher-salary/all", response_model=List[TeacherSalaryResponse])
+@salary_router.get("/teacher-salary/all", response_model=dict)
 def get_all_teacher_salaries(
     db: Annotated[Session, Depends(get_session)],
-    user: Annotated[User, Depends(require_admin_accountant())]
+    user: Annotated[User, Depends(require_admin_accountant())],
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
 ):
     """Get all teacher salary configurations with effective_till."""
     try:
-        salaries = db.exec(select(TeacherSalary)).all()
+        from sqlalchemy import func
+        total = db.exec(select(func.count(TeacherSalary.id))).one()
+        salaries = db.exec(
+            select(TeacherSalary)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
 
         response = []
         for salary in salaries:
@@ -183,19 +192,23 @@ def get_all_teacher_salaries(
                 select(TeacherNames)
                 .where(TeacherNames.teacher_name_id == salary.teacher_id)
             ).first()
+            response.append(TeacherSalaryResponse(
+                id=salary.id,
+                teacher_id=salary.teacher_id,
+                teacher_name=teacher.teacher_name if teacher else None,
+                base_salary=salary.base_salary,
+                effective_from=_serialize_date_value(salary.effective_from),
+                effective_till=_serialize_date_value(salary.effective_till),
+                created_at=salary.created_at
+            ))
 
-            response.append(
-                TeacherSalaryResponse(
-                    id=salary.id,
-                    teacher_id=salary.teacher_id,
-                    teacher_name=teacher.teacher_name if teacher else None,
-                    base_salary=salary.base_salary,
-                    effective_from=_serialize_date_value(salary.effective_from),
-                    effective_till=_serialize_date_value(salary.effective_till),
-                    created_at=salary.created_at
-                )
-            )
-        return response
+        return {
+            "data": response,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -439,38 +452,48 @@ def get_teacher_salary_summary(
 # SALARY LEDGER MANAGEMENT (Monthly Records - Heart of System)
 # ============================================================================
 
-@salary_router.get("/ledger/all", response_model=List[SalaryLedgerResponse])
+@salary_router.get("/ledger/all", response_model=dict)
 def get_all_salary_ledgers(
     db: Annotated[Session, Depends(get_session)],
-    user: Annotated[User, Depends(require_admin_accountant())]
+    user: Annotated[User, Depends(require_admin_accountant())],
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
 ):
     """Get all salary ledger records."""
     try:
-        # Use JOIN to fetch ledgers with teacher names in a single query (avoids N+1 problem)
+        from sqlalchemy import func
+        total = db.exec(select(func.count(SalaryLedger.id))).one()
         ledgers = db.exec(
             select(SalaryLedger, TeacherNames)
             .join(TeacherNames, SalaryLedger.teacher_id == TeacherNames.teacher_name_id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         ).all()
 
         response = []
         for ledger, teacher in ledgers:
-            response.append(
-                SalaryLedgerResponse(
-                    id=ledger.id,
-                    teacher_id=ledger.teacher_id,
-                    teacher_name=teacher.teacher_name if teacher else None,
-                    month=ledger.month,
-                    year=ledger.year,
-                    base_salary=ledger.base_salary,
-                    allowance_total=ledger.allowance_total or 0,
-                    deduction_total=ledger.deduction_total or 0,
-                    net_salary=ledger.net_salary,
-                    total_paid=ledger.total_paid or 0,
-                    remaining=ledger.remaining,
-                    created_at=ledger.created_at
-                )
-            )
-        return response
+            response.append(SalaryLedgerResponse(
+                id=ledger.id,
+                teacher_id=ledger.teacher_id,
+                teacher_name=teacher.teacher_name if teacher else None,
+                month=ledger.month,
+                year=ledger.year,
+                base_salary=ledger.base_salary,
+                allowance_total=ledger.allowance_total or 0,
+                deduction_total=ledger.deduction_total or 0,
+                net_salary=ledger.net_salary,
+                total_paid=ledger.total_paid or 0,
+                remaining=ledger.remaining,
+                created_at=ledger.created_at
+            ))
+
+        return {
+            "data": response,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1328,16 +1351,22 @@ def get_teacher_deductions(
         )
 
 
-@salary_router.get("/deduction/all", response_model=List[DeductionResponse])
+@salary_router.get("/deduction/all", response_model=dict)
 def get_all_deductions(
     db: Annotated[Session, Depends(get_session)],
-    user: Annotated[User, Depends(require_admin_accountant())]
+    user: Annotated[User, Depends(require_admin_accountant())],
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
 ):
     """Get all deductions."""
     try:
+        from sqlalchemy import func
+        total = db.exec(select(func.count(Deduction.id))).one()
         deductions = db.exec(
             select(Deduction)
             .order_by(Deduction.year.desc(), Deduction.month.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         ).all()
 
         response = []
@@ -1347,20 +1376,25 @@ def get_all_deductions(
                 .where(TeacherNames.teacher_name_id == deduction.teacher_id)
             ).first()
 
-            response.append(
-                DeductionResponse(
-                    id=deduction.id,
-                    teacher_id=deduction.teacher_id,
-                    teacher_name=teacher.teacher_name if teacher else None,
-                    month=deduction.month,
-                    year=deduction.year,
-                    amount=deduction.amount,
-                    type=deduction.type,
-                    reason=deduction.reason,
-                    created_at=deduction.created_at
-                )
-            )
-        return response
+            response.append(DeductionResponse(
+                id=deduction.id,
+                teacher_id=deduction.teacher_id,
+                teacher_name=teacher.teacher_name if teacher else None,
+                month=deduction.month,
+                year=deduction.year,
+                amount=deduction.amount,
+                type=deduction.type,
+                reason=deduction.reason,
+                created_at=deduction.created_at
+            ))
+
+        return {
+            "data": response,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

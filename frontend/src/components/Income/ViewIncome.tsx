@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { usePrint } from "@/components/print/usePrint";
 import { useRole } from "@/context/RoleContext";
 import { formatDateToDDMMYY } from "@/utils/dateFormatter";
+import { extractArrayData } from "@/utils/apiResponse";
 import { Printer, Edit2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -45,16 +46,17 @@ interface IncomeDataItem {
   amount: number;
 }
 
-interface ApiResponse<T> {
-  data: T;
-  status: number;
-  message?: string;
-}
-
 const sortByDateDesc = <T extends { date: string }>(records: T[]) =>
-  [...records].sort(
-    (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()
-  );
+  [...records].sort((left, right) => {
+    const leftTime = new Date(left.date).getTime();
+    const rightTime = new Date(right.date).getTime();
+
+    if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) return 0;
+    if (Number.isNaN(leftTime)) return 1;
+    if (Number.isNaN(rightTime)) return -1;
+
+    return rightTime - leftTime;
+  });
 
 const getIncomeCategoryIdByName = (
   categories: IncomeCategory[],
@@ -75,6 +77,9 @@ const ViewIncome = () => {
   const [incomeCategory, setIncomeCategory] = useState<IncomeCategory[]>([]);
   const [incomeData, setIncomeData] = useState<IncomeDataItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("0");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pageSize] = useState(10);
   
   // Edit modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -98,47 +103,59 @@ const ViewIncome = () => {
   const getCategories = async () => {
     setIsLoading(true);
     try {
-      const res = (await API.GetIncomeCategory()) as ApiResponse<IncomeCategory[]>;
-      const data = res.data.map((item: IncomeCategory) => ({
+      const res = await API.GetIncomeCategory();
+      const data = extractArrayData<IncomeCategory>(res).map((item) => ({
         income_cat_name_id: item.income_cat_name_id,
         income_cat_name: item.income_cat_name,
         created_at: item.created_at,
       }));
       setIncomeCategory(data);
     } catch (error) {
-      console.error("Error fetching income categories:", error);
       setIncomeCategory([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getAllIncome = async () => {
+  const getAllIncome = async (page = 1) => {
     setIsLoading(true);
     try {
-      const res = (await API.GetAllIncomeData()) as ApiResponse<IncomeDataItem[]>;
-      setIncomeData(sortByDateDesc(res.data));
+      const res = await API.GetAllIncomeData(page, pageSize);
+      const payload = res?.data;
+      const items = Array.isArray(payload?.data)
+        ? payload.data
+        : extractArrayData<IncomeDataItem>(res);
+      setIncomeData(sortByDateDesc(items as IncomeDataItem[]));
+      setCurrentPage(Number(payload?.page ?? page));
+      setTotalPages(Number(payload?.total_pages ?? 1));
     } catch (error) {
-      console.error("Error fetching all income data:", error);
       setIncomeData([]);
+      setCurrentPage(1);
+      setTotalPages(1);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getIncome = async (CategoryId: number) => {
+  const getIncome = async (CategoryId: number, page = 1) => {
     if (CategoryId === 0) {
-      // Special case for "All"
-      getAllIncome();
+      getAllIncome(page);
       return;
     }
     setIsLoading(true);
     try {
-      const res = (await API.GetIncomeData(CategoryId)) as ApiResponse<IncomeDataItem[]>;
-      setIncomeData(sortByDateDesc(res.data));
+      const res = await API.GetIncomeData(CategoryId, page, pageSize);
+      const payload = res?.data;
+      const items = Array.isArray(payload?.data)
+        ? payload.data
+        : extractArrayData<IncomeDataItem>(res);
+      setIncomeData(sortByDateDesc(items as IncomeDataItem[]));
+      setCurrentPage(Number(payload?.page ?? page));
+      setTotalPages(Number(payload?.total_pages ?? 1));
     } catch (error) {
-      console.error("Error fetching income data:", error);
       setIncomeData([]);
+      setCurrentPage(1);
+      setTotalPages(1);
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +172,6 @@ const ViewIncome = () => {
       // Refresh the data
       getAllIncome();
     } catch (error) {
-      console.error("Error deleting income:", error);
       alert("Failed to delete income record");
     } finally {
       setIsLoading(false);
@@ -232,8 +248,10 @@ const ViewIncome = () => {
               setSelectedCategory(value);
               if (value === "") {
                 setIncomeData([]);
+                setCurrentPage(1);
+                setTotalPages(1);
               } else {
-                getIncome(Number(value));
+                getIncome(Number(value), 1);
               }
             }}
           >
@@ -270,6 +288,29 @@ const ViewIncome = () => {
                 <Printer size={16} />
                 Print
               </button>
+            </div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 px-4 no-print">
+              <p className="text-sm text-gray-500">Page {currentPage} of {totalPages}</p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => getIncome(Number(selectedCategory), Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1 || isLoading}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => getIncome(Number(selectedCategory), Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages || isLoading}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
             <div id="income-print-area">
               <Table>

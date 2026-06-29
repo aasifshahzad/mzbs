@@ -28,6 +28,23 @@ import { useEffect, useState } from "react";
 import DelConfirmMsg from "../DelConfMsg";
 import { toast } from "sonner";
 
+const extractArrayData = <T,>(response: unknown): T[] => {
+  const payload = (response as { data?: unknown }).data;
+
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const nested = (payload as { data?: unknown }).data;
+    if (Array.isArray(nested)) {
+      return nested as T[];
+    }
+  }
+
+  return [];
+};
+
 export default function ModernStudentTable() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [data, setData] = useState<ClassNameModel[]>([]);
@@ -36,8 +53,9 @@ export default function ModernStudentTable() {
   const GetData = async () => {
     setLoading(true);
     try {
-      const response = (await API.Get()) as { data: ClassNameModel[] };
-      setData(Array.isArray(response?.data) ? response.data : []);
+      const response = await API.Get();
+      const classes = extractArrayData<ClassNameModel>(response);
+      setData(classes);
     } catch (error) {
       console.error("Error fetching data:", error);
       setData([]);

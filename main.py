@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Cookie, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -88,7 +89,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 logger.info("Starting application...")
 

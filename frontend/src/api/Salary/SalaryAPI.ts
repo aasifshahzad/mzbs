@@ -124,10 +124,9 @@ export namespace SalaryAPI {
   // Teacher Salary Management
   export const getAllTeacherSalaries = async (): Promise<TeacherSalaryResponse[]> => {
     try {
-      const response = await axiosInstance.get<TeacherSalaryResponse[]>("/salary/teacher-salary/all");
-      return response.data;
+      const response = await axiosInstance.get("/salary/teacher-salary/all");
+      return response.data?.data ?? response.data;
     } catch (error) {
-      console.error("Error fetching teacher salaries:", error);
       throw error;
     }
   };
@@ -137,7 +136,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.post<TeacherSalaryResponse>("/salary/teacher-salary/add", data);
       return response.data;
     } catch (error) {
-      console.error("Error creating teacher salary:", error);
       throw error;
     }
   };
@@ -153,7 +151,6 @@ export namespace SalaryAPI {
       );
       return response.data;
     } catch (error) {
-      console.error(`Error updating teacher salary ${salaryId}:`, error);
       throw error;
     }
   };
@@ -163,7 +160,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.get<TeacherSalarySummary>(`/salary/teacher-summary/${teacherId}`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching teacher salary summary for ${teacherId}:`, error);
       throw error;
     }
   };
@@ -173,7 +169,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.get<TeacherSalaryResponse[]>(`/salary/teacher-salary/${teacherId}`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching teacher salary history for ${teacherId}:`, error);
       throw error;
     }
   };
@@ -182,7 +177,6 @@ export namespace SalaryAPI {
     try {
       await axiosInstance.delete(`/salary/teacher-salary/${salaryId}`);
     } catch (error) {
-      console.error(`Error deleting teacher salary ${salaryId}:`, error);
       throw error;
     }
   };
@@ -190,10 +184,9 @@ export namespace SalaryAPI {
   // Salary Ledger Management
   export const getAllSalaryLedgers = async (): Promise<SalaryLedgerResponse[]> => {
     try {
-      const response = await axiosInstance.get<SalaryLedgerResponse[]>("/salary/ledger/all");
-      return response.data;
+      const response = await axiosInstance.get("/salary/ledger/all");
+      return response.data?.data ?? response.data;
     } catch (error) {
-      console.error("Error fetching salary ledgers:", error);
       throw error;
     }
   };
@@ -203,7 +196,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.post<SalaryLedgerResponse>("/salary/ledger/add", data);
       return response.data;
     } catch (error) {
-      console.error("Error creating salary ledger:", error);
       throw error;
     }
   };
@@ -219,7 +211,6 @@ export namespace SalaryAPI {
       );
       return response.data;
     } catch (error) {
-      console.error(`Error ensuring salary ledger for ${teacherId}/${month}/${year}:`, error);
       throw error;
     }
   };
@@ -228,7 +219,6 @@ export namespace SalaryAPI {
     try {
       await axiosInstance.delete(`/salary/ledger/${ledgerId}`);
     } catch (error) {
-      console.error(`Error deleting salary ledger ${ledgerId}:`, error);
       throw error;
     }
   };
@@ -238,7 +228,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.put<SalaryLedgerResponse>(`/salary/ledger/${ledgerId}`, data);
       return response.data;
     } catch (error) {
-      console.error(`Error updating salary ledger ${ledgerId}:`, error);
       throw error;
     }
   };
@@ -249,7 +238,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.post<SalaryPaymentResponse>("/salary/payment/add", data);
       return response.data;
     } catch (error) {
-      console.error("Error creating salary payment:", error);
       throw error;
     }
   };
@@ -259,7 +247,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.get<SalaryPaymentResponse[]>(`/salary/payment/ledger/${ledgerId}`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching payments for ledger ${ledgerId}:`, error);
       throw error;
     }
   };
@@ -269,7 +256,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.get<SalaryPaymentResponse[]>("/salary/payment/all");
       return response.data;
     } catch (error) {
-      console.error("Error fetching all salary payments:", error);
       throw error;
     }
   };
@@ -280,7 +266,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.post<AllowanceResponse>("/salary/allowance/add", data);
       return response.data;
     } catch (error) {
-      console.error("Error creating allowance:", error);
       throw error;
     }
   };
@@ -299,7 +284,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.get<AllowanceResponse[]>(url);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching allowances for teacher ${teacherId}:`, error);
       throw error;
     }
   };
@@ -309,7 +293,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.get<AllowanceResponse[]>("/salary/allowance/all");
       return response.data;
     } catch (error) {
-      console.error("Error fetching all allowances:", error);
       throw error;
     }
   };
@@ -320,7 +303,6 @@ export namespace SalaryAPI {
       const response = await axiosInstance.post<DeductionResponse>("/salary/deduction/add", data);
       return response.data;
     } catch (error) {
-      console.error("Error creating deduction:", error);
       throw error;
     }
   };
@@ -339,17 +321,15 @@ export namespace SalaryAPI {
       const response = await axiosInstance.get<DeductionResponse[]>(url);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching deductions for teacher ${teacherId}:`, error);
       throw error;
     }
   };
 
   export const getAllDeductions = async (): Promise<DeductionResponse[]> => {
     try {
-      const response = await axiosInstance.get<DeductionResponse[]>("/salary/deduction/all");
-      return response.data;
+      const response = await axiosInstance.get("/salary/deduction/all");
+      return response.data?.data ?? response.data;
     } catch (error) {
-      console.error("Error fetching all deductions:", error);
       throw error;
     }
   };
@@ -359,7 +339,6 @@ export namespace SalaryAPI {
     try {
       await axiosInstance.delete(`/salary/payment/${paymentId}`);
     } catch (error) {
-      console.error(`Error deleting salary payment ${paymentId}:`, error);
       throw error;
     }
   };
@@ -378,7 +357,6 @@ export namespace SalaryAPI {
       );
       return response.data;
     } catch (error) {
-      console.error(`Error updating salary payment ${paymentId}:`, error);
       throw error;
     }
   };
@@ -387,7 +365,6 @@ export namespace SalaryAPI {
     try {
       await axiosInstance.delete(`/salary/allowance/${allowanceId}`);
     } catch (error) {
-      console.error(`Error deleting allowance ${allowanceId}:`, error);
       throw error;
     }
   };
@@ -406,7 +383,6 @@ export namespace SalaryAPI {
       );
       return response.data;
     } catch (error) {
-      console.error(`Error updating allowance ${allowanceId}:`, error);
       throw error;
     }
   };
@@ -415,7 +391,6 @@ export namespace SalaryAPI {
     try {
       await axiosInstance.delete(`/salary/deduction/${deductionId}`);
     } catch (error) {
-      console.error(`Error deleting deduction ${deductionId}:`, error);
       throw error;
     }
   };
@@ -435,7 +410,6 @@ export namespace SalaryAPI {
       );
       return response.data;
     } catch (error) {
-      console.error(`Error updating deduction ${deductionId}:`, error);
       throw error;
     }
   };

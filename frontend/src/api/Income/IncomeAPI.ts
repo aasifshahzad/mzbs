@@ -1,34 +1,28 @@
 import AxiosInstance from "@/api/axiosInterceptorInstance";
 import { AddIncomeModel, CreateIncomeCat } from "@/models/income/income";
 
-// Helper function to get standard headers
-// const getHeaders = () => ({
-//   "Content-Type": "application/json",
-//   Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-// });
-
-// Export as a single API object
 export const IncomeAPI = {
-  GetAllIncomeData: async () => {
+  GetAllIncomeData: async (page = 1, pageSize = 10) => {
     try {
-      const response = await AxiosInstance.get("/income/all");
-      console.log("API Response:", response.data)
+      const response = await AxiosInstance.get("/income/all", {
+        params: { page, page_size: pageSize },
+      });
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },
 
-  GetIncomeData: async (category_id: number) => {
+  GetIncomeData: async (category_id: number, page = 1, pageSize = 10) => {
     try {
       const response = await AxiosInstance.get(
-        `/income/filter_income?category_id=${category_id}`
+        "/income/filter_income",
+        {
+          params: { category_id, page, page_size: pageSize },
+        }
       );
-      console.log("API Response:", response.data)
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },
@@ -44,11 +38,9 @@ export const IncomeAPI = {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
-      throw error; 
+      throw error;
     }
   },
 
@@ -57,10 +49,8 @@ export const IncomeAPI = {
       const response = await AxiosInstance.get(
         "/income_cat_names/income-cat-names-all/"
       );
-      // console.log("API Response:", response.data);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },
@@ -76,11 +66,9 @@ export const IncomeAPI = {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
-      throw error; 
+      throw error;
     }
   },
 
@@ -91,7 +79,6 @@ export const IncomeAPI = {
       );
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },
@@ -107,10 +94,8 @@ export const IncomeAPI = {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   },
@@ -122,7 +107,6 @@ export const IncomeAPI = {
       );
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   }

@@ -1,6 +1,7 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel import Session, select
+from sqlalchemy import func
 from typing import List, Optional  # Import List and Optional for response model
 
 from db import get_session
@@ -19,35 +20,45 @@ income_router = APIRouter(
 async def root():
     return {"message": "Income Router Page running :-)"}
 
-@income_router.get("/all", response_model=List[IncomeResponse])
+@income_router.get("/all", response_model=dict)
 def get_all_incomes(
     session: Session = Depends(get_session),
-    user: User = Depends(require_admin_accountant())
+    user: User = Depends(require_admin_accountant()),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
 ):
     """Get all income records."""
     try:
-        # Query to get all income records
-        incomes = session.query(Income).all()
+        total = session.exec(select(func.count(Income.id))).one()
+        incomes = session.exec(
+            select(Income)
+            .order_by(Income.date.desc(), Income.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
 
-        # Prepare the response
         response = []
         for income in incomes:
             category = session.get(IncomeCatNames, income.category_id)
-            response.append(
-                IncomeResponse(
-                    id=income.id,  # type: ignore
-                    created_at=income.created_at or datetime.utcnow(),  # Ensure created_at is not None
-                    recipt_number=income.recipt_number,
-                    date=income.date,  # type: ignore
-                    category=category.income_cat_name if category else None,  # Convert category to string
-                    source=income.source,
-                    description=income.description,
-                    contact=income.contact,
-                    amount=income.amount
-                )
-            )
-        
-        return response
+            response.append(IncomeResponse(
+                id=income.id,
+                created_at=income.created_at or datetime.utcnow(),
+                recipt_number=income.recipt_number,
+                date=income.date,
+                category=category.income_cat_name if category else None,
+                source=income.source,
+                description=income.description,
+                contact=income.contact,
+                amount=income.amount
+            ))
+
+        return {
+            "data": response,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -179,39 +190,49 @@ def delete_income(
     session.delete(db_income)
     session.commit()
 
-@income_router.get("/filter_income", response_model=List[IncomeResponse])
+@income_router.get("/filter_income", response_model=dict)
 def filter_income(
     category_id: Optional[int] = None,
     session: Session = Depends(get_session),
-    user: User = Depends(require_admin_accountant())
+    user: User = Depends(require_admin_accountant()),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
 ):
     """Filter income records by category_id, or return all if None or 0."""
     try:
-        # Return all when category_id is omitted or 0 (frontend uses 0 for "All")
-        if category_id is None or category_id == 0:
-            incomes = session.query(Income).all()
-        else:
-            incomes = session.query(Income).filter(Income.category_id == category_id).all()
+        query = select(Income)
+        if category_id and category_id != 0:
+            query = query.where(Income.category_id == category_id)
 
-        # Prepare the response
+        total = session.exec(select(func.count()).select_from(query.subquery())).one()
+        incomes = session.exec(
+            query.order_by(Income.date.desc(), Income.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
+
         filtered_response = []
         for income in incomes:
             category = session.get(IncomeCatNames, income.category_id)
-            filtered_response.append(
-                IncomeResponse(
-                    id=income.id,  # type: ignore
-                    created_at=income.created_at or datetime.utcnow(),
-                    recipt_number=income.recipt_number,
-                    date=income.date,  # type: ignore
-                    category=category.income_cat_name if category else None,
-                    source=income.source,
-                    description=income.description,
-                    contact=income.contact,
-                    amount=income.amount
-                )
-            )
-        
-        return filtered_response
+            filtered_response.append(IncomeResponse(
+                id=income.id,
+                created_at=income.created_at or datetime.utcnow(),
+                recipt_number=income.recipt_number,
+                date=income.date,
+                category=category.income_cat_name if category else None,
+                source=income.source,
+                description=income.description,
+                contact=income.contact,
+                amount=income.amount
+            ))
+
+        return {
+            "data": filtered_response,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -219,40 +240,3 @@ def filter_income(
         )
 
 
-# @income_router.get("/filter_income", response_model=List[IncomeResponse])
-# def filter_income(
-#     category_id: Optional[int] = None,   # <-- make it optional
-#     session: Session = Depends(get_session),
-#     user: User = Depends(require_admin_accountant())
-# ):
-#     """Filter income records by category_id, or return all if None."""
-#     try:
-#         if category_id is None:  # <-- if no category_id passed, fetch all
-#             incomes = session.query(Income).all()
-#         else:
-#             incomes = session.query(Income).filter(Income.category_id == category_id).all()
-
-#         # Prepare the response
-#         response = []
-#         for income in incomes:
-#             category = session.get(IncomeCatNames, income.category_id)
-#             response.append(
-#                 IncomeResponse(
-#                     id=income.id,  # type: ignore
-#                     created_at=income.created_at or datetime.utcnow(),
-#                     recipt_number=income.recipt_number,
-#                     date=income.date,  # type: ignore
-#                     category=category.income_cat_name if category else None,
-#                     source=income.source,
-#                     description=income.description,
-#                     contact=income.contact,
-#                     amount=income.amount
-#                 )
-#             )
-
-#         return response
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Error filtering income records: {str(e)}"
-#         )

@@ -53,6 +53,9 @@ const SalaryLogs = () => {
   // FIX: selectedMonth stores 1-based month value (1=Jan, 12=Dec) or null for "All"
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
 
   const MONTHS = [
     "January", "February", "March", "April", "May", "June",
@@ -200,7 +203,18 @@ const SalaryLogs = () => {
     }
 
     setFilteredTransactions(filtered);
-  }, [searchTerm, transactions, selectedMonth, selectedYear, activeTab]);
+    setCurrentPage(1);
+    setTotalPages(Math.max(1, Math.ceil(filtered.length / pageSize)));
+  }, [searchTerm, transactions, selectedMonth, selectedYear, activeTab, pageSize]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(Math.min(Math.max(1, page), totalPages));
+  };
+
+  const visibleTransactions = filteredTransactions.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   const getAvailableYears = (): number[] => {
     if (transactions.length === 0) return [new Date().getFullYear()];
@@ -505,7 +519,33 @@ const SalaryLogs = () => {
               Loading salary logs...
             </div>
           ) : filteredTransactions.length > 0 ? (
-            <table className="w-full text-sm">
+            <>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 no-print">
+                <p className="text-sm text-gray-500">
+                  Page {currentPage} of {totalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1 || isLoading}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages || isLoading}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+              <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
                   <th className="text-left py-3 px-2 font-semibold text-gray-700 dark:text-gray-200">Serial No</th>
@@ -541,12 +581,12 @@ const SalaryLogs = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.map((tx, index) => (
+                {visibleTransactions.map((tx, index) => (
                   <tr
                     key={tx.id}
                     className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-neutral-800"
                   >
-                    <td className="py-3 px-2 text-gray-900 dark:text-gray-100">{index + 1}</td>
+                    <td className="py-3 px-2 text-gray-900 dark:text-gray-100">{(currentPage - 1) * pageSize + index + 1}</td>
                     <td className="py-3 px-2 text-gray-900 dark:text-gray-100 font-medium">{tx.teacherName}</td>
 
                     {activeTab === 'payment' && (
@@ -554,7 +594,7 @@ const SalaryLogs = () => {
                         <td className="py-3 px-2 text-gray-900 dark:text-gray-100">
                           {tx.paymentDate ? new Date(tx.paymentDate).toLocaleDateString('en-PK') : '-'}
                         </td>
-                        <td className="py-3 px-2 text-gray-900 dark:text-gray-100 font-medium text-green-600 dark:text-green-400">
+                        <td className="py-3 px-2 font-medium text-green-600 dark:text-green-400">
                           Rs. {Math.round(tx.transactionAmount || 0).toLocaleString("en-US")}
                         </td>
                       </>
@@ -624,6 +664,7 @@ const SalaryLogs = () => {
                 ))}
               </tbody>
             </table>
+            </>
           ) : (
             <div className="text-center py-8 text-gray-600 dark:text-gray-400">
               {isLoading ? "Loading salary logs..." : searchTerm ? "No salary logs match your search" : `No ${activeTab} records found for the selected period`}

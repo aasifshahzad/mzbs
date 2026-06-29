@@ -27,6 +27,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
+const extractArrayData = <T,>(response: unknown): T[] => {
+  const payload = (response as { data?: unknown }).data;
+
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const nested = (payload as { data?: unknown }).data;
+    if (Array.isArray(nested)) {
+      return nested as T[];
+    }
+  }
+
+  return [];
+};
+
 interface ClassNameResponse {
   class_name_id: number;
   class_name: string;
@@ -76,13 +93,12 @@ const AddFees = () => {
       setIsLoading(true);
       try {
         // First try to get students directly from API if your backend supports it
-        const response = (await StudentAPI.GetByClassId(classId)) as unknown as {
-          data: StudentResponse[];
-        };
+        const response = await StudentAPI.GetByClassId(classId);
+        const students = extractArrayData<StudentResponse>(response);
 
-        if (response.data && response.data.length > 0) {
+        if (students.length > 0) {
           setFilteredStudentsList(
-            response.data.map((student) => ({
+            students.map((student) => ({
               id: student.student_id,
               title: student.student_name,
             }))
@@ -93,13 +109,12 @@ const AddFees = () => {
           const selectedClass = classNameList.find((cls) => cls.id === classId);
           if (selectedClass) {
             // Use the API to get all students and filter them by class name
-            const allStudentsResponse = (await StudentAPI.Get()) as {
-              data: StudentResponse[];
-            };
+            const allStudentsResponse = await StudentAPI.Get();
+        const allStudents = extractArrayData<StudentResponse>(allStudentsResponse);
 
-            const filteredStudents = allStudentsResponse.data.filter(
-              (student) => student.class_name === selectedClass.title
-            );
+        const filteredStudents = allStudents.filter(
+          (student) => student.class_name === selectedClass.title
+        );
 
             setFilteredStudentsList(
               filteredStudents.map((student) => ({
@@ -121,13 +136,12 @@ const AddFees = () => {
           // Create a simulated filtering based on class names
           // This assumes you have the full student data in the studentsList
           // and that you can match class names against class IDs
-          const allStudentsResponse = (await StudentAPI.Get()) as {
-            data: StudentResponse[];
-          };
+          const allStudentsResponse = await StudentAPI.Get();
+        const allStudents = extractArrayData<StudentResponse>(allStudentsResponse);
 
-          const filteredStudents = allStudentsResponse.data.filter(
-            (student) => student.class_name === selectedClass.title
-          );
+        const filteredStudents = allStudents.filter(
+          (student) => student.class_name === selectedClass.title
+        );
 
           setFilteredStudentsList(
             filteredStudents.map((student) => ({
@@ -160,15 +174,16 @@ const AddFees = () => {
   const GetStudents = async () => {
     setIsLoading(true);
     try {
-      const response = (await StudentAPI.Get()) as { data: StudentResponse[] };
+      const response = await StudentAPI.Get();
+      const students = extractArrayData<StudentResponse>(response);
       setStudentsList(
-        response.data.map((student) => ({
+        students.map((student) => ({
           id: student.student_id,
           title: student.student_name,
         }))
       );
       setFilteredStudentsList(
-        response.data.map((student) => ({
+        students.map((student) => ({
           id: student.student_id,
           title: student.student_name,
         }))
@@ -183,17 +198,14 @@ const AddFees = () => {
   const GetClassName = async () => {
     try {
       setIsLoading(true);
-      const response = (await ClassNameAPI.Get()) as {
-        data: ClassNameResponse[];
-      };
-      if (response.data && Array.isArray(response.data)) {
-        setClassNameList(
-          response.data.map((item: ClassNameResponse) => ({
-            id: item.class_name_id,
-            title: item.class_name,
-          }))
-        );
-      }
+      const response = await ClassNameAPI.Get();
+      const classes = extractArrayData<ClassNameResponse>(response);
+      setClassNameList(
+        classes.map((item) => ({
+          id: item.class_name_id,
+          title: item.class_name,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching class names:", error);
     }
@@ -204,7 +216,6 @@ const AddFees = () => {
     try {
       setIsLoading(true);
       await FeeAPI.Create(formData);
-      console.log("Form Data:", formData);
       toast.success("Fee record added successfully");
       reset(); // Reset form after successful submission
       setSelectedStudent(""); // Reset student selection

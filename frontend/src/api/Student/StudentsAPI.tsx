@@ -10,20 +10,20 @@ interface StudentResponse {
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace StudentAPI {
-  export const Get = async () => {
+  export const Get = async (page = 1, pageSize = 10) => {
     try {
-      const response = await AxiosInstance.get<StudentModel>(
-        "/students/all_students/"
+      const response = await AxiosInstance.get<unknown>(
+        "/students/all_students/",
+        { params: { page, page_size: pageSize } }
       );
       return response;
     } catch (error) {
-      return error;
+      throw error;
     }
   };
 
   export const Create = async (AddStudent: CreateStudent) => {
     try {
-        // ClassName = GetActionDetail(ClassName, "create");
       const response = await AxiosInstance.post<CreateStudent>(
         "/students/add/",
         JSON.stringify(AddStudent),
@@ -33,11 +33,9 @@ export namespace StudentAPI {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
-      console.error("API Error:", error);
-      throw error; 
+      throw error;
     }
   };
 
@@ -52,7 +50,6 @@ export namespace StudentAPI {
       );
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   }
@@ -65,7 +62,6 @@ export namespace StudentAPI {
       );
       return response;
     } catch (error) {
-      console.error("API Error:", error);
       throw error;
     }
   }
@@ -73,9 +69,9 @@ export namespace StudentAPI {
   export async function GetDeletedStudents() {
     try {
       const response = await AxiosInstance.get('/deleted-students/');
-      return response.data;
+      const payload = response.data;
+      return payload?.data ?? (Array.isArray(payload) ? payload : []);
     } catch (error) {
-      console.error('Error fetching deleted students:', error);
       throw error;
     }
   }
@@ -87,7 +83,6 @@ export namespace StudentAPI {
       );
       return response.data;
     } catch (error) {
-      console.error('Error restoring student:', error);
       throw error;
     }
   }
@@ -99,10 +94,10 @@ export namespace StudentAPI {
       );
       return response.data;
     } catch (error) {
-      console.error('Error permanently deleting student:', error);
       throw error;
     }
   }
+
   export async function GetStudentbyFilter(class_id: number) {
     try {
       const response = await AxiosInstance.get(
@@ -110,18 +105,17 @@ export namespace StudentAPI {
       );
       return response;
     } catch (error) {
-      return error;
+      throw error;
     }
   }
 
-  export async function GetByClassId(classId: number): Promise<{ data: StudentResponse[] }> {
+  export async function GetByClassId(classId: number): Promise<unknown> {
     try {
       const response = await AxiosInstance.get(
         `/students/by_class_id/?class_id=${classId}`
       );
       return response;
     } catch (error) {
-      console.error("Error fetching students by class ID:", error);
       throw error;
     }
   }

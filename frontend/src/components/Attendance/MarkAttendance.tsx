@@ -1,6 +1,5 @@
 "use client";
 
-import { AxiosResponse } from "axios";
 import { MarkAttInput } from "@/models/markattendace/markattendance";
 import React, { useEffect, useState } from "react";
 import { Input } from "../ui/input";
@@ -159,6 +158,23 @@ const SummaryBar = ({ data }: { data: Attendance[] }) => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+const extractArrayData = <T,>(response: unknown): T[] => {
+  const payload = (response as { data?: unknown }).data;
+
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const nestedPayload = (payload as { data?: unknown }).data;
+    if (Array.isArray(nestedPayload)) {
+      return nestedPayload as T[];
+    }
+  }
+
+  return [];
+};
+
 const MarkAttendance = () => {
   const [classNameList, setClassNameList] = useState<SelectComponentOption[]>([]);
   const [classTimeList, setClassTimeList] = useState<SelectComponentOption[]>([]);
@@ -189,15 +205,14 @@ const MarkAttendance = () => {
   const GetClassName = async () => {
     try {
       setIsLoading(true);
-      const response = (await API.Get()) as { data: ClassNameResponse[] };
-      if (response.data && Array.isArray(response.data)) {
-        setClassNameList(
-          response.data.map((item: ClassNameResponse) => ({
-            id: item.class_name_id,
-            title: item.class_name,
-          }))
-        );
-      }
+      const response = await API.Get();
+      const classNames = extractArrayData<ClassNameResponse>(response);
+      setClassNameList(
+        classNames.map((item) => ({
+          id: item.class_name_id,
+          title: item.class_name,
+        }))
+      );
     } catch (error: unknown) {
       console.error("Error fetching class names:", error);
     }
@@ -207,15 +222,14 @@ const MarkAttendance = () => {
   const GetClassTime = async () => {
     try {
       setIsLoading(true);
-      const response = (await API1.Get()) as { data: AttendanceTimeResponse[] };
-      if (response.data && Array.isArray(response.data)) {
-        setClassTimeList(
-          response.data.map((item: AttendanceTimeResponse) => ({
-            id: item.attendance_time_id,
-            title: item.attendance_time,
-          }))
-        );
-      }
+      const response = await API1.Get();
+      const classTimes = extractArrayData<AttendanceTimeResponse>(response);
+      setClassTimeList(
+        classTimes.map((item) => ({
+          id: item.attendance_time_id,
+          title: item.attendance_time,
+        }))
+      );
     } catch (error: unknown) {
       console.error("Error fetching class times:", error);
     }
@@ -225,17 +239,14 @@ const MarkAttendance = () => {
   const GetTeacherName = async () => {
     try {
       setIsLoading(true);
-      const response = (await API2.Get()) as unknown as {
-        data: TeacherResponse[];
-      };
-      if (response.data && Array.isArray(response.data)) {
-        setTeacherNameList(
-          response.data.map((item: TeacherResponse) => ({
-            id: item.teacher_name_id,
-            title: item.teacher_name,
-          }))
-        );
-      }
+      const response = await API2.Get();
+      const teachers = extractArrayData<TeacherResponse>(response);
+      setTeacherNameList(
+        teachers.map((item) => ({
+          id: item.teacher_name_id,
+          title: item.teacher_name,
+        }))
+      );
     } catch (error: unknown) {
       console.error("Error fetching teachers:", error);
     }
@@ -351,21 +362,17 @@ const MarkAttendance = () => {
     console.log("Sending payload:", payload);
 
     try {
-      const response = (await AttendanceAPI.Create(
-        payload
-      )) as unknown as AxiosResponse<BulkAttendanceResponse>;
-      
-      console.log("Full response object:", response);
-      console.log("Response status:", response.status);
-      console.log("Response data:", response.data);
-      console.log("Response data type:", typeof response.data);
-      
-      if (response.status === 200 || response.status === 201) {
-        // Extract summary safely from response.data
-        const summary = response.data as BulkAttendanceResponse;
-        
-        console.log("Extracted summary:", summary);
-        
+      const response = await AttendanceAPI.Create(payload);
+      const status = (response as { status?: number }).status;
+      const data = (response as { data?: BulkAttendanceResponse }).data;
+
+      if (status === 200 || status === 201) {
+        const summary = data ?? {
+          saved: [],
+          skipped: [],
+          summary: { total: 0, saved: 0, skipped: 0 },
+        };
+
         toast.success(
           `Attendance submitted: ${summary.summary.saved} saved, ${summary.summary.skipped} skipped`,
           { position: "bottom-center", duration: 5000 }
@@ -378,10 +385,6 @@ const MarkAttendance = () => {
       }
     } catch (error: unknown) {
       console.error("Submit error:", error);
-      console.error("Error details:", {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
       toast.error("Something went wrong!", {
         position: "bottom-center",
         duration: 5000,
@@ -395,12 +398,11 @@ const MarkAttendance = () => {
   const HandleSubmitForStudentGet = async (formData: MarkAttInput) => {
     try {
       setIsLoading(true);
-      const response = (await API3.GetStudentbyFilter(
-        formData.class_name_id
-      )) as { data: StudentResponse[] };
-      if (response.data && Array.isArray(response.data)) {
+      const response = await API3.GetStudentbyFilter(formData.class_name_id);
+      const students = extractArrayData<StudentResponse>(response);
+      if (students.length > 0) {
         setStudentByFilter(
-          response.data.map((item: StudentResponse) => ({
+          students.map((item) => ({
             id: item.student_id,
             title: item.student_name,
           }))

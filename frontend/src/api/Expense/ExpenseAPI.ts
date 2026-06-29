@@ -4,10 +4,11 @@ import { AddExpenseModel, ExpenseCategory } from "@/models/expense/expense";
 
 // Export as a single API object
 export const ExpenseAPI = {
-  GetAllExpenseData: async () => {
+  GetAllExpenseData: async (page = 1, pageSize = 10) => {
     try {
-      const response = await AxiosInstance.get("/expenses/expenses-all/");
-      console.log("API Response:", response.data);
+      const response = await AxiosInstance.get("/expenses/expenses-all/", {
+        params: { page, page_size: pageSize },
+      });
       return response;
     } catch (error) {
       console.error("API Error:", error);
@@ -15,12 +16,14 @@ export const ExpenseAPI = {
     }
   },
 
-  GetExpenseData: async (category_id: number) => {
+  GetExpenseData: async (category_id: number, page = 1, pageSize = 10) => {
     try {
       const response = await AxiosInstance.get(
-        `/expenses/filter-by-category/${category_id}`
+        "/expenses/filter-by-category/0",
+        {
+          params: { category_id, page, page_size: pageSize },
+        }
       );
-      console.log("API Response:", response.data);
       return response;
     } catch (error) {
       console.error("API Error:", error);
@@ -39,7 +42,6 @@ export const ExpenseAPI = {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
       console.error("API Error:", error);
@@ -58,7 +60,6 @@ export const ExpenseAPI = {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
       console.error("API Error:", error);
@@ -71,7 +72,6 @@ export const ExpenseAPI = {
       const response = await AxiosInstance.get(
         "/expense_cat_names/expense-cat-names-all/"
       );
-      console.log("API Response:", response.data);
       return response;
     } catch (error) {
       console.error("API Error:", error);
@@ -102,7 +102,6 @@ export const ExpenseAPI = {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
       console.error("API Error:", error);

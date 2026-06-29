@@ -32,7 +32,6 @@ export namespace TeacherNameAPI {
           },
         }
       );
-      console.log("API Response:", response);
       return response;
     } catch (error) {
       console.error("API Error:", error);

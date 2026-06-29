@@ -106,8 +106,12 @@ const AttendanceStatusSummary = () => {
   const loadClasses = async () => {
     try {
       setClassesLoading(true);
-      const response = await ClassNameAPI.Get() as { data: ClassNamesData[] };
-      setClasses(response.data || []);
+      const response = await ClassNameAPI.Get();
+      const payload = (response as { data?: unknown }).data;
+      const classesData = Array.isArray(payload)
+        ? payload
+        : (payload as { data?: ClassNamesData[] } | undefined)?.data ?? [];
+      setClasses(Array.isArray(classesData) ? classesData : []);
     } catch (error) {
       console.error("Error loading classes:", error);
       toast.error("Failed to load classes");

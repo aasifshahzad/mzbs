@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { usePrint } from "@/components/print/usePrint";
 import { useRole } from "@/context/RoleContext";
 import { formatDateToDDMMYY } from "@/utils/dateFormatter";
+import { extractArrayData } from "@/utils/apiResponse";
 import { Printer, Edit2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -35,12 +36,6 @@ interface ExpenseFormValues {
 }
 
 // Generic API response interface
-interface ApiResponse<T> {
-  data: T;
-  status: number;
-  message?: string;
-}
-
 // Interface for expense data items
 interface ExpenseDataItem {
   id: number;
@@ -53,9 +48,16 @@ interface ExpenseDataItem {
 }
 
 const sortByDateDesc = <T extends { date: string }>(records: T[]) =>
-  [...records].sort(
-    (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()
-  );
+  [...records].sort((left, right) => {
+    const leftTime = new Date(left.date).getTime();
+    const rightTime = new Date(right.date).getTime();
+
+    if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) return 0;
+    if (Number.isNaN(leftTime)) return 1;
+    if (Number.isNaN(rightTime)) return -1;
+
+    return rightTime - leftTime;
+  });
 
 const getExpenseCategoryIdByName = (
   categories: ExpenseCategory[],
@@ -75,6 +77,9 @@ const ViewExpense = () => {
   const [expenseCategory, setExpenseCategory] = useState<ExpenseCategory[]>([]);
   const [expenseData, setExpenseData] = useState<ExpenseDataItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("0");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pageSize] = useState(10);
 
   // Edit modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -97,50 +102,55 @@ const ViewExpense = () => {
   const getCategories = async () => {
     setIsLoading(true);
     try {
-      const res = (await API.GetExpenseCategory()) as ApiResponse<
-        ExpenseCategory[]
-      >;
-      setExpenseCategory(res.data);
+      const res = await API.GetExpenseCategory();
+      const categories = extractArrayData<ExpenseCategory>(res);
+      setExpenseCategory(categories);
     } catch (error) {
-      console.error("Error fetching Expense categories:", error);
       setExpenseCategory([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getAllExpense = async () => {
+  const getAllExpense = async (page = 1) => {
     setIsLoading(true);
     try {
-      const res = (await API.GetAllExpenseData()) as ApiResponse<ExpenseDataItem[]>;
-      if (res && Array.isArray(res.data) && res.data.length > 0) {
-        setExpenseData(sortByDateDesc(res.data));
-        return;
-      }
-
+      const res = await API.GetAllExpenseData(page, pageSize);
+      const payload = res?.data;
+      const items = Array.isArray(payload?.data)
+        ? payload.data
+        : extractArrayData<ExpenseDataItem>(res);
+      setExpenseData(sortByDateDesc(items as ExpenseDataItem[]));
+      setCurrentPage(Number(payload?.page ?? page));
+      setTotalPages(Number(payload?.total_pages ?? 1));
     } catch (error) {
-      console.error("Error fetching all Expense data:", error);
       setExpenseData([]);
+      setCurrentPage(1);
+      setTotalPages(1);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getExpense = async (CategoryId: number) => {
+  const getExpense = async (CategoryId: number, page = 1) => {
     if (CategoryId === 0) {
-      getAllExpense();
+      getAllExpense(page);
       return;
     }
     setIsLoading(true);
     try {
-      const res = (await API.GetExpenseData(CategoryId)) as ApiResponse<ExpenseDataItem[]>;
-      if (res && Array.isArray(res.data)) {
-        setExpenseData(sortByDateDesc(res.data));
-        return;
-      }
+      const res = await API.GetExpenseData(CategoryId, page, pageSize);
+      const payload = res?.data;
+      const items = Array.isArray(payload?.data)
+        ? payload.data
+        : extractArrayData<ExpenseDataItem>(res);
+      setExpenseData(sortByDateDesc(items as ExpenseDataItem[]));
+      setCurrentPage(Number(payload?.page ?? page));
+      setTotalPages(Number(payload?.total_pages ?? 1));
     } catch (error) {
-      console.error("Error fetching Expense data:", error);
       setExpenseData([]);
+      setCurrentPage(1);
+      setTotalPages(1);
     } finally {
       setIsLoading(false);
     }
@@ -157,7 +167,6 @@ const ViewExpense = () => {
       // Refresh the data
       getAllExpense();
     } catch (error) {
-      console.error("Error deleting expense:", error);
       alert("Failed to delete expense record");
     } finally {
       setIsLoading(false);
@@ -206,7 +215,6 @@ const ViewExpense = () => {
         setExpenseData([]);
       }
     } catch (error) {
-      console.error("Error updating expense:", error);
       toast.error("Failed to update expense record");
     } finally {
       setIsLoading(false);
@@ -231,8 +239,10 @@ const ViewExpense = () => {
               setSelectedCategory(value);
               if (value === "") {
                 setExpenseData([]);
+                setCurrentPage(1);
+                setTotalPages(1);
               } else {
-                getExpense(Number(value));
+                getExpense(Number(value), 1);
               }
             }}
           >
@@ -270,6 +280,29 @@ const ViewExpense = () => {
                 <Printer size={16} />
                 Print
               </button>
+            </div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 px-4 no-print">
+              <p className="text-sm text-gray-500">Page {currentPage} of {totalPages}</p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => getExpense(Number(selectedCategory), Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1 || isLoading}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => getExpense(Number(selectedCategory), Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages || isLoading}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
             <div id="expense-print-area">
               <Table>

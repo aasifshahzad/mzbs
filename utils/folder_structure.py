@@ -1,57 +1,76 @@
 import os
+import argparse
 
 IGNORE_FOLDERS = {".venv", "__pycache__", ".git", ".next", "node_modules"}
 
-def get_all_files(start_path):
-    """Recursively get all files in a directory"""
-    all_files = []
-    
-    for root, dirs, files in os.walk(start_path):
-        # Remove ignored folders from dirs to prevent descending into them
-        dirs[:] = [d for d in dirs if d not in IGNORE_FOLDERS]
-        
-        for file in files:
-            file_path = os.path.join(root, file)
-            # Store relative path from start_path
-            rel_path = os.path.relpath(file_path, start_path)
-            all_files.append(rel_path)
-    
-    return sorted(all_files)
 
-# Get all files in frontend/src
-src_path = "./frontend/src"
+def build_tree(start_path):
+    """Recursively build a sorted tree structure of directories and files."""
+    tree = {
+        "name": os.path.basename(start_path.rstrip(os.sep)) or start_path,
+        "children": [],
+        "is_dir": True,
+    }
 
-if os.path.exists(src_path):
-    files = get_all_files(src_path)
-    print(f"All files in {src_path}:\n")
-    for file in files:
-        print(file)
-    print(f"\nTotal files: {len(files)}")
-else:
-    print(f"Error: {src_path} does not exist")
+    try:
+        entries = sorted(
+            os.listdir(start_path),
+            key=lambda name: (not os.path.isdir(os.path.join(start_path, name)), name.lower()),
+        )
+    except OSError:
+        return tree
 
+    for entry in entries:
+        if entry in IGNORE_FOLDERS:
+            continue
 
-# import os
-# import sys
-# print("Current directory:", os.getcwd())
-# print("Directory contents:", os.listdir('.'))
-# print("Parent contents:", os.listdir('..'))
+        full_path = os.path.join(start_path, entry)
+        if os.path.isdir(full_path):
+            tree["children"].append(build_tree(full_path))
+        else:
+            tree["children"].append({"name": entry, "children": [], "is_dir": False})
+
+    return tree
 
 
+def format_tree(node, prefix="", is_last=True):
+    """Format a tree node into a printable string list."""
+    connector = "└── " if is_last else "├── "
+    lines = [f"{prefix}{connector}{node['name']}"]
 
-# print("=== DEBUG INFO ===")
-# print("Current dir:", os.getcwd())
-# print("Python path:", sys.path)
-# print("Files in current dir:", os.listdir('.'))
-# if 'api' in os.listdir('.'):
-#     print("✓ 'api' directory exists")
-# else:
-#     print("✗ 'api' directory NOT found!")
-# print("==================")
+    if node["is_dir"] and node["children"]:
+        next_prefix = f"{prefix}{'    ' if is_last else '│   '}"
+        for idx, child in enumerate(node["children"]):
+            lines.extend(format_tree(child, next_prefix, idx == len(node["children"]) - 1))
 
-# # Debug for deployment
-# print("=== NORTHFLANK DEBUG ===")
-# print("Working directory:", os.getcwd())
-# print("Python path:", sys.path)
-# print("Listing current directory:", os.listdir('.'))
-# print("=======================")
+    return lines
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Print a formatted folder tree.")
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Root path to print (default: current working directory)",
+    )
+    args = parser.parse_args()
+
+    start_path = os.path.abspath(args.path)
+    if not os.path.exists(start_path):
+        print(f"Error: {start_path} does not exist")
+        return
+
+    tree = build_tree(start_path)
+    print(f"Folder structure for: {start_path}\n")
+
+    # Print root name explicitly for top-level directory
+    root_name = os.path.basename(start_path.rstrip(os.sep)) or start_path
+    print(root_name)
+    for idx, child in enumerate(tree["children"]):
+        lines = format_tree(child, prefix="", is_last=idx == len(tree["children"]) - 1)
+        print("\n".join(lines))
+
+
+if __name__ == "__main__":
+    main()

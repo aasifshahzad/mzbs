@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/dashboard/Header";
 import { CardsSkeleton, ChartSkeleton } from "@/components/dashboard/Skeleton";
 import { motion } from "framer-motion";
+import { extractPayloadData } from "@/utils/apiResponse";
 import { DashboardAPI } from "@/api/Dashboard/dashboardAPI";
 import {
   BarChart,
@@ -197,13 +199,37 @@ export function PrincipalDashboard() {
   const [classError, setClassError] = useState(false);
   const [selectedAttendanceTime, setSelectedAttendanceTime] = useState<string | null>(null);
 
-  // ── Fetch Section 1 ──
+  const { data: summaryData, isError: summaryError } = useQuery({
+    queryKey: ["dashboard-summary-principal", today],
+    queryFn: () => DashboardAPI.GetDashboardSummary(today),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!summaryData) {
+      if (summaryError) {
+        setStudentSummaryLoading(false);
+        setAttendanceSummaryLoading(false);
+      }
+      return;
+    }
+    if (summaryData.student_summary && !studentSummaryData) {
+      setStudentSummaryData(summaryData.student_summary as StudentSummaryData);
+      setStudentSummaryLoading(false);
+    }
+    if (summaryData.attendance_summary && !attendanceSummaryData) {
+      setAttendanceSummaryData(summaryData.attendance_summary as AttendanceSummaryData);
+      setAttendanceSummaryLoading(false);
+    }
+  }, [summaryData]);
+
   const fetchStudentSummary = useCallback(async (date: string) => {
     setStudentSummaryLoading(true);
     setDistError(false);
     try {
-      const response = await DashboardAPI.GetStudentSummary(date) as any;
-      setStudentSummaryData(response?.data ?? null);
+      const response = await DashboardAPI.GetStudentSummary(date);
+      const payload = extractPayloadData<StudentSummaryData>(response);
+      setStudentSummaryData(payload ?? null);
     } catch {
       setDistError(true);
       setStudentSummaryData(null);
@@ -212,13 +238,13 @@ export function PrincipalDashboard() {
     }
   }, []);
 
-  // ── Fetch Section 2 ──
   const fetchAttendanceSummary = useCallback(async (date: string) => {
     setAttendanceSummaryLoading(true);
     setClassError(false);
     try {
-      const response = await DashboardAPI.GetAttendanceSummary(date) as any;
-      setAttendanceSummaryData(response?.data ?? null);
+      const response = await DashboardAPI.GetAttendanceSummary(date);
+      const payload = extractPayloadData<AttendanceSummaryData>(response);
+      setAttendanceSummaryData(payload ?? null);
     } catch {
       setClassError(true);
       setAttendanceSummaryData(null);
@@ -227,9 +253,16 @@ export function PrincipalDashboard() {
     }
   }, []);
 
-  // Re-fetch each section independently when its own date changes
-  useEffect(() => { fetchStudentSummary(distDate); }, [distDate, fetchStudentSummary]);
-  useEffect(() => { fetchAttendanceSummary(classDate); }, [classDate, fetchAttendanceSummary]);
+  const isInitialMount = React.useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    fetchStudentSummary(distDate);
+  }, [distDate]);
+
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    fetchAttendanceSummary(classDate);
+  }, [classDate]);
 
   // ── Extract available attendance times and set default ──
   useEffect(() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRole } from "@/context/RoleContext";
 import { Header } from "@/components/dashboard/Header";
 import { DashboardAPI } from "@/api/Dashboard/dashboardAPI";
@@ -9,13 +10,9 @@ import SalarySummarySection from "@/components/Salary/SalarySummarySection";
 import { RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line } from "recharts";
+import { extractPayloadData } from "@/utils/apiResponse";
 
 // API Response Type Definitions
-interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  status?: number;
-}
 
 interface IncomeExpenseSummaryData {
   year: number;
@@ -159,64 +156,89 @@ export function AccountantDashboard() {
     "December",
   ];
 
-  // Fetch Income Expense Summary (exposed for manual refresh)
+  const { data: summaryData, isError: summaryError } = useQuery({
+    queryKey: ["dashboard-summary-accountant", currentYear],
+    queryFn: () => DashboardAPI.GetDashboardSummary(undefined, currentYear),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!summaryData) {
+      if (summaryError) {
+        setIncomeExpenseLoading(false);
+        setIncomeSummaryLoading(false);
+        setExpenseSummaryLoading(false);
+        setFeeSummaryLoading(false);
+      }
+      return;
+    }
+    if (summaryData.income_expense_summary && !incomeExpenseSummaryData) {
+      setIncomeExpenseSummaryData(summaryData.income_expense_summary as IncomeExpenseSummaryData);
+      setIncomeExpenseLoading(false);
+    }
+    if (summaryData.income_summary && !incomeSummaryData) {
+      setIncomeSummaryData(summaryData.income_summary as IncomeSummaryData);
+      setIncomeSummaryLoading(false);
+    }
+    if (summaryData.expense_summary && !expenseSummaryData) {
+      setExpenseSummaryData(summaryData.expense_summary as ExpenseSummaryData);
+      setExpenseSummaryLoading(false);
+    }
+    if (summaryData.fee_summary && !feeSummaryData) {
+      setFeeSummaryData(summaryData.fee_summary as FeeSummaryData);
+      setFeeSummaryLoading(false);
+    }
+  }, [summaryData]);
+
   const fetchIncomeExpenseSummary = async (year: number = selectedYear) => {
     if (!role) return;
     setIncomeExpenseLoading(true);
     try {
-      const response = (await DashboardAPI.GetIncomeExpenseSummary(year)) as ApiResponse<IncomeExpenseSummaryData>;
-      if (response && response.data) setIncomeExpenseSummaryData(response.data);
-    } catch (error) {
-      console.error("Error fetching income expense summary:", error);
+      const response = await DashboardAPI.GetIncomeExpenseSummary(year);
+      const payload = extractPayloadData<IncomeExpenseSummaryData>(response);
+      if (payload) setIncomeExpenseSummaryData(payload);
+    } catch {
       setIncomeExpenseSummaryData(null);
     } finally {
       setIncomeExpenseLoading(false);
     }
   };
 
-  useEffect(() => { fetchIncomeExpenseSummary(selectedYear); }, [selectedYear, role]);
-
-  // Fetch Income Summary (exposed for manual refresh)
   const fetchIncomeSummary = async (year: number = selectedYear, month: number | null = selectedMonth) => {
     if (!role) return;
     setIncomeSummaryLoading(true);
     try {
-      const response = (await DashboardAPI.GetIncomeSummary(year, month === null ? undefined : month)) as ApiResponse<IncomeSummaryData>;
-      if (response && response.data) setIncomeSummaryData(response.data);
-    } catch (error) {
-      console.error("Error fetching income summary:", error);
+      const response = await DashboardAPI.GetIncomeSummary(year, month === null ? undefined : month);
+      const payload = extractPayloadData<IncomeSummaryData>(response);
+      if (payload) setIncomeSummaryData(payload);
+    } catch {
       setIncomeSummaryData(null);
     } finally {
       setIncomeSummaryLoading(false);
     }
   };
 
-  useEffect(() => { fetchIncomeSummary(selectedYear, selectedMonth); }, [selectedYear, selectedMonth, role]);
-
-  // Fetch Expense Summary (exposed for manual refresh)
   const fetchExpenseSummary = async (year: number = selectedYear, month: number | null = selectedExpenseMonth) => {
     if (!role) return;
     setExpenseSummaryLoading(true);
     try {
-      const response = (await DashboardAPI.GetExpenseSummary(year, month === null ? undefined : month)) as ApiResponse<ExpenseSummaryData>;
-      if (response && response.data) setExpenseSummaryData(response.data);
-    } catch (error) {
-      console.error("Error fetching expense summary:", error);
+      const response = await DashboardAPI.GetExpenseSummary(year, month === null ? undefined : month);
+      const payload = extractPayloadData<ExpenseSummaryData>(response);
+      if (payload) setExpenseSummaryData(payload);
+    } catch {
       setExpenseSummaryData(null);
     } finally {
       setExpenseSummaryLoading(false);
     }
   };
 
-  useEffect(() => { fetchExpenseSummary(selectedYear, selectedExpenseMonth); }, [selectedYear, selectedExpenseMonth, role]);
-
-  // Fetch Fee Summary (exposed for manual refresh)
   const fetchFeeSummary = async (year: number = selectedYear) => {
     if (!role) return;
     setFeeSummaryLoading(true);
     try {
-      const response = (await DashboardAPI.GetFeeSummary(year)) as ApiResponse<FeeSummaryData>;
-      if (response && response.data) setFeeSummaryData(response.data);
+      const response = await DashboardAPI.GetFeeSummary(year);
+      const payload = extractPayloadData<FeeSummaryData>(response);
+      if (payload) setFeeSummaryData(payload);
     } catch (error) {
       console.error("Error fetching fee summary:", error);
       setFeeSummaryData(null);
@@ -225,7 +247,24 @@ export function AccountantDashboard() {
     }
   };
 
-  useEffect(() => { fetchFeeSummary(selectedYear); }, [selectedYear, role]);
+  const isInitialMount = React.useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    fetchIncomeExpenseSummary(selectedYear);
+    fetchIncomeSummary(selectedYear, selectedMonth);
+    fetchExpenseSummary(selectedYear, selectedExpenseMonth);
+    fetchFeeSummary(selectedYear);
+  }, [selectedYear, role]);
+
+  useEffect(() => {
+    if (!summaryData) return;
+    fetchIncomeSummary(selectedYear, selectedMonth);
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    if (!summaryData) return;
+    fetchExpenseSummary(selectedYear, selectedExpenseMonth);
+  }, [selectedExpenseMonth]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">

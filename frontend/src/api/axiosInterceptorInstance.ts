@@ -6,7 +6,7 @@ const axiosInstance: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
-  timeout: 10000,
+  timeout: 30000, // increased from 10s → 30s to handle Neon cold starts
 });
 
 // Request interceptor — attach token from localStorage
