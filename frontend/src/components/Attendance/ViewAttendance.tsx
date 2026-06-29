@@ -181,12 +181,18 @@ const AttendanceTable: React.FC = () => {
         const response = await API.GetbyFilter(filter, page, pageSize);
 
         if (response.status === 200) {
-          const payload = response?.data ?? {};
+          const payload = (response?.data as {
+            data?: AttendanceRecord[];
+            total?: number;
+            total_pages?: number;
+          } | null | undefined) ?? {};
           const records = Array.isArray(payload?.data)
             ? (payload.data as AttendanceRecord[])
             : extractArrayData<AttendanceRecord>(response);
           const total = Number(payload?.total ?? records.length ?? 0);
-          const pages = Number(payload?.total_pages ?? Math.max(1, Math.ceil(total / pageSize)));
+          const pages = Number(
+            payload?.total_pages ?? Math.max(1, Math.ceil(total / pageSize))
+          );
 
           if (records.length > 0) {
             toast.success(`Found ${records.length} records`, {
