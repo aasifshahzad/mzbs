@@ -86,9 +86,8 @@ const AddIncome = () => {
                 Receipt Number
               </label>
               <Input
-                type="number"
+                type="text"
                 {...register("recipt_number", {
-                  valueAsNumber: true,
                   required: "Required",
                 })}
                 placeholder="Enter receipt number"

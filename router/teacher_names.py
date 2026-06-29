@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError  # <-- Add this import
 
 from db import get_session
+from utils.cache import cache_get, cache_set, cache_invalidate
 
 from schemas.teacher_names_model import TeacherNames, TeacherNamesCreate, TeacherNamesResponse
 from schemas.attendance_model import Attendance
@@ -31,6 +32,7 @@ def create_teachernames( user: Annotated[User, Depends(require_admin())],teacher
     try:
         session.commit()
         session.refresh(db_teachernames)
+        cache_invalidate("teacher_names")
     except IntegrityError as e:
         session.rollback()
         logger.error(f"Integrity error: {e}")
@@ -55,9 +57,17 @@ def create_teachernames( user: Annotated[User, Depends(require_admin())],teacher
 
 
 @teachernames_router.get("/teacher-names-all/", response_model=List[TeacherNamesResponse])
-def read_teachernames(current_user: Annotated[User, Depends(require_admin_teacher_principal_accountant())],session: Session = Depends(get_session)):
+def read_teachernames(
+    current_user: Annotated[User, Depends(require_admin_teacher_principal_accountant())],
+    session: Session = Depends(get_session)
+):
+    cached = cache_get("teacher_names")
+    if cached is not None:
+        return cached
     teachernames = session.exec(select(TeacherNames)).all()
-    return teachernames
+    result = [TeacherNamesResponse.model_validate(t) for t in teachernames]
+    cache_set("teacher_names", result)
+    return result
 
 # # Returns teacher name of any specific teacher-name-id
 
@@ -92,6 +102,7 @@ def delete_teachernames(
         )
     session.delete(teachernames)
     session.commit()
+    cache_invalidate("teacher_names")
     return {"message": "Teacher Name deleted successfully"}
 
 @teachernames_router.delete("/{teacher_id}", response_model=dict)
@@ -117,6 +128,7 @@ def delete_teacher_by_id(
     try:
         session.delete(teacher)
         session.commit()
+        cache_invalidate("teacher_names")
         return {"message": f"Teacher with ID {teacher_id} deleted successfully"}
     except Exception as e:
         session.rollback()

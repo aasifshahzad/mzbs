@@ -9,7 +9,7 @@ class ExpenseBase(SQLModel):
     created_at: Optional[datetime] = Field(default=None)
 
 class Expense(ExpenseBase, table=True):
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime))  # Default to current datetime
     date: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime))  # Updated to use datetime.now() as default
@@ -20,7 +20,7 @@ class Expense(ExpenseBase, table=True):
     amount: float
 
 class ExpenseCreate(ExpenseBase):
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     date: datetime
     category_id: int  # Use category_id instead of category
     to_whom: str
@@ -30,7 +30,7 @@ class ExpenseCreate(ExpenseBase):
 class ExpenseResponse(ExpenseBase):
     id: int
     created_at: datetime
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     date: datetime
     category: str  # Ensure category is a string for response serialization
     to_whom: str
@@ -38,7 +38,7 @@ class ExpenseResponse(ExpenseBase):
     amount: float
 
 class ExpenseUpdate(SQLModel):
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     date: Optional[datetime] = None
     category_id: Optional[int] = None  # Use category_id for updates
     to_whom: Optional[str] = None
@@ -48,7 +48,7 @@ class ExpenseUpdate(SQLModel):
 class ExpenseFilter(SQLModel):
     id: Optional[int] = None
     created_at: Optional[str] = None
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     date: Optional[datetime] = None
     category: Optional[str] = None
     to_whom: Optional[str] = None

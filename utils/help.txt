@@ -40,3 +40,12 @@ frontend/src/api/Salary/SalaryAPI.ts
 
 SalaryLogs.tsx
 ViewSalary.tsx
+
+router/class_names.py
+router/teacher_names.py
+router/attendance_value.py
+router/attendance_time.py
+router/income_cat_names.py
+router/expense_cat_names.py
+main.py
+db.py (just the first 50 lines — I need to see how get_session and tenant context are set up)

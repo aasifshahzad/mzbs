@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError  # <-- Add this import
 
 from db import get_session
+from utils.cache import cache_get, cache_set, cache_invalidate
 from schemas.class_names_model import ClassNames, ClassNamesCreate, ClassNamesResponse
 from schemas.attendance_model import Attendance
 from user.user_crud import require_admin, require_admin_teacher_principal, require_admin_teacher_principal_accountant
@@ -29,6 +30,7 @@ def create_classnames(user: Annotated[User, Depends(require_admin())],classnames
     try:
         session.commit()
         session.refresh(db_classnames)
+        cache_invalidate("class_names")
     except IntegrityError as e:
         session.rollback()
         logger.error(f"Integrity error: {e}")
@@ -53,9 +55,17 @@ def create_classnames(user: Annotated[User, Depends(require_admin())],classnames
 
 
 @classnames_router.get("/class-names-all/", response_model=List[ClassNamesResponse])
-def read_classnames(current_user: Annotated[User, Depends(require_admin_teacher_principal_accountant())],session: Session = Depends(get_session)):
+def read_classnames(
+    current_user: Annotated[User, Depends(require_admin_teacher_principal_accountant())],
+    session: Session = Depends(get_session)
+):
+    cached = cache_get("class_names")
+    if cached is not None:
+        return cached
     classnames = session.exec(select(ClassNames)).all()
-    return classnames
+    result = [ClassNamesResponse.model_validate(c) for c in classnames]
+    cache_set("class_names", result)
+    return result
 
 # # Returns class name of any specific class-name-id
 
@@ -85,6 +95,7 @@ def delete_classnames(user: Annotated[User, Depends(require_admin())],class_name
         )
     session.delete(classnames)
     session.commit()
+    cache_invalidate("class_names")
     return {"message": "Class Name deleted successfully"}
 
 @classnames_router.delete("/{class_name_id}", response_model=dict)
@@ -110,6 +121,7 @@ def delete_classnames_by_id(
     try:
         session.delete(classname)
         session.commit()
+        cache_invalidate("class_names")
         return {"message": f"Class Name with ID {class_name_id} deleted successfully"}
     except Exception as e:
         session.rollback()

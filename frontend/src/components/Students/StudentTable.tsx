@@ -39,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/dashboard/Skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StudentModel } from "@/models/students/Student";
@@ -465,15 +466,13 @@ export default function ModernStudentTable() {
           </TableHeader>
 
           <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="text-center py-4">
-                  <div className="flex justify-center">
-                    <LoaderIcon className="animate-spin w-8 h-8 sm:w-10 sm:h-10" />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : data?.length > 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="py-2">
+                    <TableSkeleton rows={8} />
+                  </TableCell>
+                </TableRow>
+              ) : data?.length > 0 ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-900">
                   {row.getVisibleCells().map((cell) => (

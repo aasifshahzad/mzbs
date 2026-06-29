@@ -1,7 +1,7 @@
 import { EntityBase } from "../EntityBase";
 
 export interface AddIncomeModel {
-  recipt_number: number;
+  recipt_number: string;
   date: string; // ISO date string format
   category_id: number;
   source: string;

@@ -80,9 +80,8 @@ const AddExpense = () => {
                 Receipt Number
               </label>
               <Input
-                type="number"
+                type="text"
                 {...register("recipt_number", {
-                  valueAsNumber: true,
                   required: "Receipt number is required",
                 })}
                 placeholder="Enter receipt number"

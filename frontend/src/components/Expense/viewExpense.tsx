@@ -1,6 +1,7 @@
 "use client";
 import { ExpenseCategory } from "@/models/expense/expense";
 import React, { useEffect, useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
 import { ExpenseAPI as API } from "@/api/Expense/ExpenseAPI";
 import { useForm } from "react-hook-form";
 import { usePrint } from "@/components/print/usePrint";
@@ -28,7 +29,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Header } from "../dashboard/Header";
-import Loader from "../Loader";
+import { TableSkeleton } from "@/components/dashboard/Skeleton";
 
 // Form values interface
 interface ExpenseFormValues {
@@ -39,7 +40,7 @@ interface ExpenseFormValues {
 // Interface for expense data items
 interface ExpenseDataItem {
   id: number;
-  recipt_number?: number | null;
+  recipt_number?: string | null;
   date: string;
   category: string;
   to_whom: string;
@@ -192,9 +193,7 @@ const ViewExpense = () => {
     setIsLoading(true);
     try {
       const updateData = {
-        recipt_number: editFormData.recipt_number
-          ? Number(editFormData.recipt_number)
-          : null,
+        recipt_number: editFormData.recipt_number || null,
         date: editFormData.date,
         to_whom: editFormData.to_whom,
         description: editFormData.description || null,
@@ -224,7 +223,6 @@ const ViewExpense = () => {
   return (
     <div>
       <Header value="View Expense" />
-      <Loader isActive={isLoading} />
       <form className="space-y-4 border w-full my-2">
         <div className="space-y-4 px-2 rounded-md">
           <label className="font-bold text-sm dark:text-gray-300">
@@ -234,7 +232,7 @@ const ViewExpense = () => {
             {...register("category_id", { valueAsNumber: true })}
             className="w-[14rem] border bg-white rounded-md px-3 py-2 focus:ring focus:ring-indigo-300 dark:bg-background dark:text-gray-300"
             value={selectedCategory}
-            onChange={(e) => {
+            onChange={useDebouncedCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
               const value = e.target.value;
               setSelectedCategory(value);
               if (value === "") {
@@ -244,7 +242,7 @@ const ViewExpense = () => {
               } else {
                 getExpense(Number(value), 1);
               }
-            }}
+            }, 300)}
           >
             <option value="" disabled>-- Select Category --</option>
             <option value={0}>All</option>
@@ -266,7 +264,9 @@ const ViewExpense = () => {
 
       {/* Table to display Expense data */}
       <div className="mt-4 bg-white dark:bg-background rounded-md">
-        {expenseData.length > 0 ? (
+        {isLoading ? (
+          <TableSkeleton rows={8} />
+        ) : expenseData.length > 0 ? (
           <>
             <div className="flex justify-between items-center p-4 no-print">
               <h3 className="text-lg font-semibold">Expense Data</h3>
@@ -370,7 +370,7 @@ const ViewExpense = () => {
               <div className="space-y-1">
                 <label className="text-sm font-medium">Bill number</label>
                 <Input
-                  type="number"
+                  type="text"
                   value={editFormData.recipt_number}
                   onChange={(e) =>
                     setEditFormData({

@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError  # <-- Add this import
 
 from db import get_session
+from utils.cache import cache_get, cache_set, cache_invalidate
 
 from schemas.expense_cat_names_model import ExpenseCatNames, ExpenseCatNamesCreate, ExpenseCatNamesResponse
 from user.user_crud import require_admin_accountant_fee_manager
@@ -32,6 +33,7 @@ def create_expense_cat_name(
     try:
         session.commit()
         session.refresh(db_expense_cat_name)
+        cache_invalidate("expense_cats")
     except IntegrityError as e:
         session.rollback()
         logger.error(f"Integrity error: {e}")
@@ -55,9 +57,15 @@ def create_expense_cat_name(
 @expense_cat_names_router.get("/expense-cat-names-all/", response_model=List[ExpenseCatNamesResponse])
 def read_expense_cat_names(
     user: Annotated[User, Depends(require_admin_accountant_fee_manager())],
-    session: Session = Depends(get_session)):
+    session: Session = Depends(get_session)
+):
+    cached = cache_get("expense_cats")
+    if cached is not None:
+        return cached
     expense_cat_names = session.exec(select(ExpenseCatNames)).all()
-    return expense_cat_names
+    result = [ExpenseCatNamesResponse.model_validate(c) for c in expense_cat_names]
+    cache_set("expense_cats", result)
+    return result
 
 @expense_cat_names_router.get("/{expense_cat_id}", response_model=ExpenseCatNamesResponse)
 def read_expense_cat_name(
@@ -86,4 +94,5 @@ def delete_expense_cat_name(
         )
     session.delete(expense_cat_name)
     session.commit()
+    cache_invalidate("expense_cats")
     return {"message": "Expense Category Name deleted successfully"}

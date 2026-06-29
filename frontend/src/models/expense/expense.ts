@@ -1,5 +1,5 @@
 export interface AddExpenseModel {
-  recipt_number: number;
+  recipt_number: string;
   date: string; // ISO date string format
   category_id: number;
   to_whom: string;
@@ -13,7 +13,7 @@ export interface ExpenseCategory {
 }
 
 export interface ExpenseData {
-  receipt_number: number;
+  receipt_number: string;
   date: string; // ISO date string format
   category: string;
   to_whom: string;

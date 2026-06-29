@@ -4,6 +4,7 @@ import { IncomeCategory } from "@/models/income/income";
 import React, { useEffect, useState } from "react";
 import { IncomeAPI as API } from "@/api/Income/IncomeAPI";
 import { useForm } from "react-hook-form";
+import { useDebouncedCallback } from "use-debounce";
 import { usePrint } from "@/components/print/usePrint";
 import { useRole } from "@/context/RoleContext";
 import { formatDateToDDMMYY } from "@/utils/dateFormatter";
@@ -29,7 +30,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Header } from "../dashboard/Header";
-import Loader from "../Loader";
+import { TableSkeleton } from "@/components/dashboard/Skeleton";
 
 interface IncomeFormValues {
   category_id: number;
@@ -37,7 +38,7 @@ interface IncomeFormValues {
 
 interface IncomeDataItem {
   id: number;
-  recipt_number?: number | null;
+  recipt_number?: string | null;
   date: string;
   category: string;
   source: string;
@@ -199,9 +200,7 @@ const ViewIncome = () => {
     setIsLoading(true);
     try {
       const updateData = {
-        recipt_number: editFormData.recipt_number
-          ? Number(editFormData.recipt_number)
-          : null,
+        recipt_number: editFormData.recipt_number || null,
         date: editFormData.date,
         source: editFormData.source,
         description: editFormData.description || null,
@@ -234,7 +233,6 @@ const ViewIncome = () => {
   return (
     <div className="container mx-auto">
       <Header value="View Income" />
-      <Loader isActive={isLoading} />
 
       <form className="space-y-4 border w-full my-2">
         <div className="space-y-4 px-2 rounded-md">
@@ -243,7 +241,7 @@ const ViewIncome = () => {
             {...register("category_id", { valueAsNumber: true })}
             className="w-[14rem] border bg-white rounded-md px-3 py-2 focus:ring focus:ring-indigo-300 dark:bg-background dark:text-gray-300"
             value={selectedCategory}
-            onChange={(e) => {
+            onChange={useDebouncedCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
               const value = e.target.value;
               setSelectedCategory(value);
               if (value === "") {
@@ -253,7 +251,7 @@ const ViewIncome = () => {
               } else {
                 getIncome(Number(value), 1);
               }
-            }}
+            }, 300)}
           >
             <option value="" disabled>-- Select Category --</option>
             <option value={0}>All</option>
@@ -274,7 +272,9 @@ const ViewIncome = () => {
       </form>
 
       <div className="mt-4 container mx-auto bg-white dark:bg-background rounded-md">
-        {incomeData.length > 0 ? (
+        {isLoading ? (
+          <TableSkeleton rows={8} />
+        ) : incomeData.length > 0 ? (
           <>
             <div className="flex justify-between items-center p-4 no-print">
               <h3 className="text-lg font-semibold">Income Data</h3>
@@ -380,7 +380,7 @@ const ViewIncome = () => {
               <div className="space-y-1">
                 <label className="text-sm font-medium">Receipt Number</label>
                 <Input
-                  type="number"
+                  type="text"
                   value={editFormData.recipt_number}
                   onChange={(e) =>
                     setEditFormData({ ...editFormData, recipt_number: e.target.value })

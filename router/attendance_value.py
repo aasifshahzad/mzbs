@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError  # <-- Add this import
 
 from db import get_session
+from utils.cache import cache_get, cache_set, cache_invalidate
 from schemas.attendance_value_model import AttendanceValue, AttendanceValueCreate, AttendanceValueResponse
 from user.user_crud import require_admin_teacher_principal, require_authenticated
 from user.user_models import User
@@ -29,6 +30,7 @@ def create_attendancevalue(user: Annotated[User, Depends(require_admin_teacher_p
     try:
         session.commit()
         session.refresh(db_attendancevalue)
+        cache_invalidate("attendance_values")
     except IntegrityError as e:
         session.rollback()
         logger.error(f"Integrity error: {e}")
@@ -53,9 +55,17 @@ def create_attendancevalue(user: Annotated[User, Depends(require_admin_teacher_p
 
 
 @attendancevalue_router.get("/attendance-values-all/", response_model=List[AttendanceValueResponse])
-def read_attendancevalues(current_user: Annotated[User, Depends(require_authenticated())],session: Session = Depends(get_session)):
+def read_attendancevalues(
+    current_user: Annotated[User, Depends(require_authenticated())],
+    session: Session = Depends(get_session)
+):
+    cached = cache_get("attendance_values")
+    if cached is not None:
+        return cached
     attendancevalues = session.exec(select(AttendanceValue)).all()
-    return attendancevalues
+    result = [AttendanceValueResponse.model_validate(v) for v in attendancevalues]
+    cache_set("attendance_values", result)
+    return result
 
 # # Returns attendancevalue of any specific attendancevalue-id
 
@@ -85,6 +95,7 @@ def delete_attendancevalue(user: Annotated[User, Depends(require_admin_teacher_p
         )
     session.delete(attendancevalue)
     session.commit()
+    cache_invalidate("attendance_values")
     return {"message": "Attendance Value deleted successfully"}
 
 @attendancevalue_router.delete("/{attendance_value_id}", response_model=dict)
@@ -110,6 +121,7 @@ def delete_attendancevalue_by_id(
     try:
         session.delete(attendancevalue)
         session.commit()
+        cache_invalidate("attendance_values")
         return {"message": f"Attendance Value with ID {attendance_value_id} deleted successfully"}
     except Exception as e:
         session.rollback()

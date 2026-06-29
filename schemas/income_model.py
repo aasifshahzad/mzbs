@@ -9,7 +9,7 @@ class IncomeBase(SQLModel):
     created_at: Optional[datetime] = Field(default=None)
 
 class Income(IncomeBase, table=True):
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     date: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime))  # Updated to use datetime.now() as default
     category_id: int = Field(foreign_key="incomecatnames.income_cat_name_id")  # Add foreign key
@@ -20,7 +20,7 @@ class Income(IncomeBase, table=True):
     amount: float
 
 class IncomeCreate(SQLModel):
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     date: datetime
     category_id: int  # Use category_id instead of category
     source: str
@@ -31,7 +31,7 @@ class IncomeCreate(SQLModel):
 class IncomeResponse(SQLModel):
     id: int
     created_at: datetime
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     date: datetime
     category: str  # Ensure category is a string
     source: str
@@ -40,7 +40,7 @@ class IncomeResponse(SQLModel):
     amount: float
 
 class IncomeUpdate(SQLModel):
-    recipt_number: Optional[int] = None
+    recipt_number: Optional[str] = None
     date: Optional[datetime] = None
     category_id: Optional[int] = None  # Use category_id for updates
     source: Optional[str] = None

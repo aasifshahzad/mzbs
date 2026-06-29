@@ -80,6 +80,8 @@ def read_expenses(
     expenses = session.exec(
         select(Expense)
             .order_by(Expense.date.desc(), Expense.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
     ).all()
 
     return {

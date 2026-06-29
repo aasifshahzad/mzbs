@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError  # <-- Add this import
 
 from db import get_session
+from utils.cache import cache_get, cache_set, cache_invalidate
 
 from schemas.income_cat_names_model import IncomeCatNames, IncomeCatNamesCreate, IncomeCatNamesResponse
 from user.user_crud import require_admin_accountant_fee_manager
@@ -31,6 +32,7 @@ def create_income_cat_name( user: Annotated[User, Depends(require_admin_accounta
     try:
         session.commit()
         session.refresh(db_income_cat_name)
+        cache_invalidate("income_cats")
     # sqlmodel uses SQLAlchemy exceptions for integrity errors
     except IntegrityError as e:
         session.rollback()
@@ -57,9 +59,17 @@ def create_income_cat_name( user: Annotated[User, Depends(require_admin_accounta
 
 
 @income_cat_names_router.get("/income-cat-names-all/", response_model=List[IncomeCatNamesResponse])
-def read_income_cat_names(current_user: Annotated[User, Depends(require_admin_accountant_fee_manager())], session: Session = Depends(get_session)):
+def read_income_cat_names(
+    current_user: Annotated[User, Depends(require_admin_accountant_fee_manager())],
+    session: Session = Depends(get_session)
+):
+    cached = cache_get("income_cats")
+    if cached is not None:
+        return cached
     income_cat_names = session.exec(select(IncomeCatNames)).all()
-    return income_cat_names
+    result = [IncomeCatNamesResponse.model_validate(c) for c in income_cat_names]
+    cache_set("income_cats", result)
+    return result
 
 
 
@@ -88,4 +98,5 @@ def delete_income_cat_name(user: Annotated[User, Depends(require_admin_accountan
         )
     session.delete(income_cat_name)
     session.commit()
+    cache_invalidate("income_cats")
     return {"message": "Income Category Name deleted successfully"}

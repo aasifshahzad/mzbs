@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError  # <-- Add this import
 
 from db import get_session
+from utils.cache import cache_get, cache_set, cache_invalidate
 from schemas.attendance_time_model import AttendanceTime, AttendanceTimeCreate, AttendanceTimeResponse
 from schemas.attendance_model import Attendance
 from user.user_crud import require_admin_teacher_principal, require_authenticated
@@ -29,6 +30,7 @@ def create_attendance_time(user: Annotated[User, Depends(require_admin_teacher_p
     try:
         session.commit()
         session.refresh(db_attendance_time)
+        cache_invalidate("attendance_times")
     except IntegrityError as e:
         session.rollback()
         logger.error(f"Integrity error: {e}")
@@ -53,9 +55,17 @@ def create_attendance_time(user: Annotated[User, Depends(require_admin_teacher_p
 
 
 @attendance_time_router.get("/attendance-values-all/", response_model=List[AttendanceTimeResponse])
-def read_attendance_times(current_user: Annotated[User, Depends(require_authenticated())],session: Session = Depends(get_session)):
+def read_attendance_times(
+    current_user: Annotated[User, Depends(require_authenticated())],
+    session: Session = Depends(get_session)
+):
+    cached = cache_get("attendance_times")
+    if cached is not None:
+        return cached
     attendance_times = session.exec(select(AttendanceTime)).all()
-    return attendance_times
+    result = [AttendanceTimeResponse.model_validate(t) for t in attendance_times]
+    cache_set("attendance_times", result)
+    return result
 
 # # Returns attendance_time of any specific attendance_time-id
 
@@ -85,6 +95,7 @@ def delete_attendance_time(user: Annotated[User, Depends(require_admin_teacher_p
         )
     session.delete(attendance_time)
     session.commit()
+    cache_invalidate("attendance_times")
     return {"message": "Attendance Time deleted successfully"}
 
 @attendance_time_router.delete("/{attendance_time_id}", response_model=dict)
@@ -110,6 +121,7 @@ def delete_attendance_time_by_id(
     try:
         session.delete(attendance_time)
         session.commit()
+        cache_invalidate("attendance_times")
         return {"message": f"Attendance Time with ID {attendance_time_id} deleted successfully"}
     except Exception as e:
         session.rollback()
