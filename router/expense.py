@@ -67,6 +67,7 @@ def create_expense(
         to_whom=db_expense.to_whom,
         description=db_expense.description,
         amount=db_expense.amount,
+        source_type=db_expense.source_type,
     )
 
 @expense_router.get("/expenses-all/", response_model=dict)
@@ -95,6 +96,7 @@ def read_expenses(
                 to_whom=e.to_whom,
                 description=e.description,
                 amount=e.amount,
+                source_type=e.source_type,
             )
             for e in expenses
         ],
@@ -120,6 +122,7 @@ def read_expense(user: Annotated[User, Depends(require_admin_accountant())],expe
         to_whom=expense.to_whom,
         description=expense.description,
         amount=expense.amount,
+        source_type=expense.source_type,
     )
 
 @expense_router.put("/update/{expense_id}", response_model=ExpenseResponse)
@@ -129,6 +132,13 @@ def update_expense(user: Annotated[User, Depends(require_admin_accountant())],
     if not db_expense:
         raise HTTPException(
             status_code=404, detail="Expense not found")
+    
+    # Prevent editing auto-generated expense records
+    if db_expense.source_type is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot edit auto-generated expense record from {db_expense.source_type}. Edit the source record instead."
+        )
 
     for key, value in expense_update.dict(exclude_unset=True).items():
         setattr(db_expense, key, value)
@@ -152,6 +162,7 @@ def update_expense(user: Annotated[User, Depends(require_admin_accountant())],
         to_whom=db_expense.to_whom,
         description=db_expense.description,
         amount=db_expense.amount,
+        source_type=db_expense.source_type
     )
 
 @expense_router.delete("/del/{expense_id}", response_model=dict)
@@ -160,6 +171,14 @@ def delete_expense(user: Annotated[User, Depends(require_admin())],expense_id: i
     if not expense:
         raise HTTPException(
             status_code=404, detail="Expense not found")
+    
+    # Prevent deleting auto-generated expense records
+    if expense.source_type is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete auto-generated expense record from {expense.source_type}. Delete the source record instead."
+        )
+    
     session.delete(expense)
     session.commit()
     return {"message": "Expense deleted successfully"}
@@ -198,6 +217,7 @@ def filter_expense_by_category(
                     to_whom=expense.to_whom,
                     description=expense.description,
                     amount=expense.amount,
+                    source_type=expense.source_type,
                 )
             )
 

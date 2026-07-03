@@ -156,6 +156,7 @@ class SalaryPaymentResponse(SQLModel):
     payment_date: str
     created_at: datetime
     teacher_name: Optional[str] = None
+    linked_expense_created: bool = False
 
 
 # ============================================================================
@@ -195,6 +196,7 @@ class AllowanceUpdate(SQLModel):
 class AllowanceResponse(AllowanceBase, SQLModel):
     teacher_name: Optional[str] = None
     amount: Optional[Decimal] = None
+    linked_expense_created: bool = False
 
 
 # ============================================================================

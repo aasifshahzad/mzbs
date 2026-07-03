@@ -16,6 +16,7 @@ from db import get_session
 from schemas.fee_model import Fee, FeeCreate, FeeResponse, FeeStatus, FeeUpdateRequest, FeeFilter, FilterPaidUnpaid
 from user.user_crud import require_admin_accountant_fee_manager, require_admin
 from user.user_models import User
+from services.finance_sync_service import sync_income_for_fee, delete_income_for_fee
 
 fee_router = APIRouter(
     prefix="/fee",
@@ -99,6 +100,14 @@ async def create_fee(
         db.add(new_fee)
         db.commit()
         db.refresh(new_fee)
+        
+        # Sync to income if fee is paid
+        if new_fee.fee_status == FeeStatus.PAID or new_fee.fee_status == "Paid":
+            try:
+                sync_income_for_fee(db, new_fee, student.student_name, student.father_name, class_name.class_name)
+            except Exception as sync_error:
+                # Log sync error but don't fail the fee creation
+                print(f"Warning: Failed to sync income for fee {new_fee.fee_id}: {str(sync_error)}")
 
         response = FeeResponse(
             fee_id=new_fee.fee_id,
@@ -137,6 +146,13 @@ async def delete_fee(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Fee record with ID {fee_id} not found"
             )
+        
+        # Delete linked income record if it exists
+        try:
+            delete_income_for_fee(db, fee.fee_id)
+        except Exception as sync_error:
+            # Log sync error but don't fail the fee deletion
+            print(f"Warning: Failed to delete linked income for fee {fee.fee_id}: {str(sync_error)}")
 
         db.delete(fee)
         db.commit()
@@ -185,6 +201,25 @@ async def update_fee(
         db.add(fee)
         db.commit()
         db.refresh(fee)
+        
+        # Sync to income if fee is paid
+        if fee.fee_status == FeeStatus.PAID or fee.fee_status == "Paid":
+            try:
+                # Fetch student and class info for sync
+                student_details = get_student_details_utility(db, fee.student_id)
+                class_name_obj = db.exec(
+                    select(ClassNames)
+                    .where(ClassNames.class_name_id == fee.class_id)
+                ).first()
+                sync_income_for_fee(
+                    db, fee,
+                    student_details.get("student_name") if student_details else None,
+                    student_details.get("father_name") if student_details else None,
+                    class_name_obj.class_name if class_name_obj else None
+                )
+            except Exception as sync_error:
+                # Log sync error but don't fail the fee update
+                print(f"Warning: Failed to sync income for fee {fee.fee_id}: {str(sync_error)}")
 
         # Fetch student and class info for response
         student_details = get_student_details_utility(db, fee.student_id)

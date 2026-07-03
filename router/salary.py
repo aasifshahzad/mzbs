@@ -22,6 +22,12 @@ from services.salary_service import (
     calculate_teacher_salary_summary,
     validate_salary_timeline
 )
+from services.finance_sync_service import (
+    sync_expense_for_salary_payment,
+    delete_expense_for_salary_payment,
+    sync_expense_for_allowance,
+    delete_expense_for_allowance
+)
 
 
 # ============================================================================
@@ -783,6 +789,15 @@ def create_salary_payment(
         db.add(ledger)
         db.commit()
         db.refresh(new_payment)
+        
+        # Sync to expense record
+        linked_expense_created = False
+        try:
+            sync_expense_for_salary_payment(db, new_payment, teacher.teacher_name)
+            linked_expense_created = True
+        except Exception as sync_error:
+            # Log sync error but don't fail the payment creation
+            print(f"Warning: Failed to sync expense for salary payment {new_payment.id}: {str(sync_error)}")
 
         return SalaryPaymentResponse(
             id=new_payment.id,
@@ -791,7 +806,8 @@ def create_salary_payment(
             ledger_id=new_payment.ledger_id,
             amount=new_payment.amount,
             payment_date=new_payment.payment_date,
-            created_at=new_payment.created_at
+            created_at=new_payment.created_at,
+            linked_expense_created=linked_expense_created
         )
     except HTTPException:
         raise
@@ -905,6 +921,13 @@ def delete_salary_payment(
             select(SalaryLedger)
             .where(SalaryLedger.id == payment.ledger_id)
         ).first()
+        
+        # Delete linked expense record if it exists
+        try:
+            delete_expense_for_salary_payment(db, payment.id)
+        except Exception as sync_error:
+            # Log sync error but don't fail the payment deletion
+            print(f"Warning: Failed to delete linked expense for salary payment {payment.id}: {str(sync_error)}")
 
         db.delete(payment)
         db.commit()
@@ -950,6 +973,20 @@ def update_salary_payment(
         db.add(payment)
         db.commit()
         db.refresh(payment)
+        
+        # Sync to expense record
+        linked_expense_created = False
+        teacher = db.exec(
+            select(TeacherNames)
+            .where(TeacherNames.teacher_name_id == payment.teacher_id)
+        ).first()
+        
+        try:
+            sync_expense_for_salary_payment(db, payment, teacher.teacher_name if teacher else "Unknown")
+            linked_expense_created = True
+        except Exception as sync_error:
+            # Log sync error but don't fail the payment update
+            print(f"Warning: Failed to sync expense for salary payment {payment.id}: {str(sync_error)}")
 
         # Recalculate ledger totals after payment update
         ledger = db.exec(
@@ -959,11 +996,6 @@ def update_salary_payment(
         if ledger:
             recalculate_ledger_totals(db, ledger.teacher_id, ledger.month, ledger.year)
 
-        teacher = db.exec(
-            select(TeacherNames)
-            .where(TeacherNames.teacher_name_id == payment.teacher_id)
-        ).first()
-
         return SalaryPaymentResponse(
             id=payment.id,
             teacher_id=payment.teacher_id,
@@ -971,7 +1003,8 @@ def update_salary_payment(
             ledger_id=payment.ledger_id,
             amount=payment.amount,
             payment_date=payment.payment_date,
-            created_at=payment.created_at
+            created_at=payment.created_at,
+            linked_expense_created=linked_expense_created
         )
     except HTTPException:
         raise
@@ -1030,6 +1063,15 @@ def create_allowance(
         db.add(new_allowance)
         db.commit()
         db.refresh(new_allowance)
+        
+        # Sync to expense record
+        linked_expense_created = False
+        try:
+            sync_expense_for_allowance(db, new_allowance, teacher.teacher_name)
+            linked_expense_created = True
+        except Exception as sync_error:
+            # Log sync error but don't fail the allowance creation
+            print(f"Warning: Failed to sync expense for allowance {new_allowance.id}: {str(sync_error)}")
 
         return AllowanceResponse(
             id=new_allowance.id,
@@ -1039,7 +1081,8 @@ def create_allowance(
             year=new_allowance.year,
             amount=new_allowance.amount,
             reason=new_allowance.reason,
-            created_at=new_allowance.created_at
+            created_at=new_allowance.created_at,
+            linked_expense_created=linked_expense_created
         )
     except HTTPException:
         raise
@@ -1160,6 +1203,13 @@ def delete_allowance(
         teacher_id = allowance.teacher_id
         month = allowance.month
         year = allowance.year
+        
+        # Delete linked expense record if it exists
+        try:
+            delete_expense_for_allowance(db, allowance.id)
+        except Exception as sync_error:
+            # Log sync error but don't fail the allowance deletion
+            print(f"Warning: Failed to delete linked expense for allowance {allowance.id}: {str(sync_error)}")
 
         db.delete(allowance)
         db.commit()
@@ -1204,14 +1254,23 @@ def update_allowance(
         db.add(allowance)
         db.commit()
         db.refresh(allowance)
-
-        # Recalculate ledger totals after allowance update
-        recalculate_ledger_totals(db, allowance.teacher_id, allowance.month, allowance.year)
-
+        
+        # Sync to expense record
+        linked_expense_created = False
         teacher = db.exec(
             select(TeacherNames)
             .where(TeacherNames.teacher_name_id == allowance.teacher_id)
         ).first()
+        
+        try:
+            sync_expense_for_allowance(db, allowance, teacher.teacher_name if teacher else "Unknown")
+            linked_expense_created = True
+        except Exception as sync_error:
+            # Log sync error but don't fail the allowance update
+            print(f"Warning: Failed to sync expense for allowance {allowance.id}: {str(sync_error)}")
+
+        # Recalculate ledger totals after allowance update
+        recalculate_ledger_totals(db, allowance.teacher_id, allowance.month, allowance.year)
 
         return AllowanceResponse(
             id=allowance.id,
@@ -1221,7 +1280,8 @@ def update_allowance(
             year=allowance.year,
             amount=allowance.amount,
             reason=allowance.reason,
-            created_at=allowance.created_at
+            created_at=allowance.created_at,
+            linked_expense_created=linked_expense_created
         )
     except HTTPException:
         raise

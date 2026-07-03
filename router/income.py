@@ -49,7 +49,8 @@ def get_all_incomes(
                 source=income.source,
                 description=income.description,
                 contact=income.contact,
-                amount=income.amount
+                amount=income.amount,
+                source_type=income.source_type
             ))
 
         return {
@@ -113,7 +114,8 @@ def create_income(
         source=db_income.source,
         description=db_income.description,
         contact=db_income.contact,
-        amount=db_income.amount
+        amount=db_income.amount,
+        source_type=db_income.source_type
     )
 
 @income_router.patch("/update/{income_id}", response_model=IncomeResponse)
@@ -128,6 +130,13 @@ def update_income(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Income not found"
+        )
+    
+    # Prevent editing auto-generated income records
+    if db_income.source_type is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot edit auto-generated income record from {db_income.source_type}. Edit the source record instead."
         )
     
     # Update the fields if they are provided
@@ -171,7 +180,8 @@ def update_income(
         source=db_income.source,
         description=db_income.description,
         contact=db_income.contact,
-        amount=db_income.amount
+        amount=db_income.amount,
+        source_type=db_income.source_type
     )
 
 @income_router.delete("/delete/{income_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -185,6 +195,13 @@ def delete_income(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Income not found"
+        )
+    
+    # Prevent deleting auto-generated income records
+    if db_income.source_type is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete auto-generated income record from {db_income.source_type}. Delete the source record instead."
         )
     
     session.delete(db_income)
@@ -223,7 +240,8 @@ def filter_income(
                 source=income.source,
                 description=income.description,
                 contact=income.contact,
-                amount=income.amount
+                amount=income.amount,
+                source_type=income.source_type
             ))
 
         return {

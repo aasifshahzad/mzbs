@@ -19,6 +19,8 @@ class Expense(ExpenseBase, table=True):
     to_whom: str
     description: Optional[str] = None
     amount: float
+    source_type: Optional[str] = Field(default=None, index=True)
+    source_id: Optional[int] = Field(default=None, index=True)
 
 class ExpenseCreate(ExpenseBase):
     recipt_number: Optional[str] = None
@@ -37,6 +39,7 @@ class ExpenseResponse(ExpenseBase):
     to_whom: str
     description: Optional[str] = None
     amount: float
+    source_type: Optional[str] = None
 
 class ExpenseUpdate(SQLModel):
     recipt_number: Optional[str] = None

@@ -46,6 +46,7 @@ interface ExpenseDataItem {
   to_whom: string;
   description: string;
   amount: number;
+  source_type?: string | null;
 }
 
 const sortByDateDesc = <T extends { date: string }>(records: T[]) =>
@@ -220,6 +221,19 @@ const ViewExpense = () => {
     }
   };
 
+  const getSourceBadgeClasses = (sourceType: string | null | undefined): string => {
+    switch (sourceType) {
+      case "Fee":
+        return "bg-green-100 text-green-700";
+      case "SalaryPayment":
+        return "bg-blue-100 text-blue-700";
+      case "Allowance":
+        return "bg-amber-100 text-amber-700";
+      default:
+        return "bg-gray-200 text-gray-700";
+    }
+  };
+
   return (
     <div>
       <Header value="View Expense" />
@@ -324,27 +338,40 @@ const ViewExpense = () => {
                     <TableRow className="h-[1rem]" key={item.id}>
                       <TableCell>{item.recipt_number ?? "-"}</TableCell>
                       <TableCell>{formatDateToDDMMYY(item.date)}</TableCell>
-                      <TableCell>{item.category}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span>{item.category}</span>
+                          {item.source_type && (
+                            <span className={`text-xs px-2 py-1 rounded font-semibold ${getSourceBadgeClasses(item.source_type)}`}>
+                              Auto
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{item.to_whom}</TableCell>
                       <TableCell>{item.description}</TableCell>
                       <TableCell>{item.amount}</TableCell>
                       {(role === "ADMIN" || role === "ACCOUNTANT") && (
                         <TableCell className="no-print flex gap-2 items-center">
-                          <button
-                            onClick={() => handleEditClick(item)}
-                            className="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
-                            title="Edit"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          {role === "ADMIN" && (
-                            <button
-                              onClick={() => handleDeleteExpense(item.id)}
-                              className="p-1 text-red-600 hover:bg-red-100 rounded transition"
-                              title="Delete"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                          {!item.source_type && (
+                            <>
+                              <button
+                                onClick={() => handleEditClick(item)}
+                                className="p-1 text-blue-600 hover:bg-blue-100 rounded transition"
+                                title="Edit"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              {role === "ADMIN" && (
+                                <button
+                                  onClick={() => handleDeleteExpense(item.id)}
+                                  className="p-1 text-red-600 hover:bg-red-100 rounded transition"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </>
                           )}
                         </TableCell>
                       )}

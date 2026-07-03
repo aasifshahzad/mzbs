@@ -19,6 +19,8 @@ class Income(IncomeBase, table=True):
     description: Optional[str] = None
     contact: Optional[str] = None
     amount: float
+    source_type: Optional[str] = Field(default=None, index=True)
+    source_id: Optional[int] = Field(default=None, index=True)
 
 class IncomeCreate(SQLModel):
     recipt_number: Optional[str] = None
@@ -39,6 +41,7 @@ class IncomeResponse(SQLModel):
     description: Optional[str] = None
     contact: Optional[str] = None
     amount: float
+    source_type: Optional[str] = None
 
 class IncomeUpdate(SQLModel):
     recipt_number: Optional[str] = None
