@@ -2408,6 +2408,1658 @@ export interface ExpenseData {
 
 ---
 
+---
+
+## File: user/user_models.py
+
+```python
+from sqlmodel import SQLModel, Field, Enum, Column
+from typing import Optional
+from datetime import timedelta, datetime
+import enum
+import re
+from pydantic import field_validator
+
+class UserRole(str, enum.Enum):
+    ADMIN = "ADMIN"
+    TEACHER = "TEACHER"
+    USER = "USER"
+    ACCOUNTANT = "ACCOUNTANT"
+    FEE_MANAGER = "FEE_MANAGER"
+    PRINCIPAL = "PRINCIPAL"
+
+class Token(SQLModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: timedelta
+
+class TokenData(SQLModel):
+    username: str
+    exp: Optional[int] = None
+
+class UserBase(SQLModel):
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+
+class UserLogin(SQLModel):
+    username: str
+    password: str
+    grant_type: Optional[str] = "password"  # Default value
+    scope: Optional[str] = ""
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+
+class UserUpdate(SQLModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[UserRole] = None
+
+class AdminUserUpdate(SQLModel):
+    role: UserRole = Field(description="Must be one of: ADMIN, TEACHER, USER")
+
+class User(UserBase, table=True):
+    username: str = Field(unique=True, nullable=False)
+    email: str = Field(index=True, unique=True, nullable=False)
+    password: str = Field(nullable=False)
+    role: UserRole = Field(default=UserRole.USER)
+
+class UserCreate(SQLModel):
+    username: str
+    email: str
+    password: str
+    role: UserRole = UserRole.USER
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v):
+        """Validate username format: alphanumeric + underscore, 3-20 chars"""
+        if not isinstance(v, str):
+            raise ValueError('Username must be a string')
+        if len(v) < 3 or len(v) > 20:
+            raise ValueError('Username must be between 3 and 20 characters')
+        if not re.match(r'^[a-zA-Z0-9_]+$', v):
+            raise ValueError('Username can only contain letters, numbers, and underscores')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        """Validate password: max 72 UTF-8 bytes (bcrypt constraint)"""
+        if not isinstance(v, str):
+            raise ValueError('Password must be a string')
+        # Bcrypt has a hard limit of 72 bytes UTF-8
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password must not exceed 72 bytes when UTF-8 encoded')
+        return v
+
+class UserResponse(SQLModel):
+    username: str
+    email: str
+    role: UserRole
+    id: int
+
+class LoginResponse(SQLModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: UserResponse
+
+class RefreshToken(SQLModel, table=True):
+    """Stores refresh tokens for server-side revocation and tracking"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, nullable=False)
+    token: str = Field(nullable=False, unique=True, index=True)
+    expires_at: datetime = Field(nullable=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    revoked_at: Optional[datetime] = None
+    
+    def is_expired(self) -> bool:
+        """Check if token has expired"""
+        return datetime.utcnow() > self.expires_at
+    
+    def is_revoked(self) -> bool:
+        """Check if token has been revoked"""
+        return self.revoked_at is not None
+```
+
+---
+
+## File: user/user_router.py
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, Cookie, Response, status, Request
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlmodel import Session, select
+from datetime import timedelta
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from .user_models import (
+    User, UserCreate, UserUpdate, UserResponse, 
+    LoginResponse, AdminUserUpdate, UserLogin, UserRole
+)
+from .user_crud import (
+    user_login, delete_user, signup_user,
+    get_current_user, update_user,
+    # Replace old check functions with new role checkers
+    require_admin, require_admin_principal, require_admin_teacher_principal,
+    require_admin_accountant, require_admin_fee_manager, require_all_roles,
+    require_authenticated
+)
+from .services import (
+    verify_token, create_access_token, get_user_by_username,
+    revoke_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_password_hash
+)
+from db import get_session
+from typing import Annotated, List
+
+# Create separate routers for auth and public endpoints
+public_router = APIRouter(
+    tags=["Public"]
+)
+
+user_router = APIRouter(
+    prefix="/auth",
+    tags=["User"]
+)
+
+admin_router = APIRouter(
+    prefix="/admin/users",
+    tags=["Admin"]
+)
+
+# Security: Initialize rate limiter (prevents brute force attacks)
+limiter = Limiter(key_func=get_remote_address)
+
+# Update tokenUrl to remove auth prefix
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login-swagger")
+
+# Public routes (no auth prefix) - No role checking needed
+@public_router.post("/login-swagger", response_model=LoginResponse)
+@limiter.limit("5/minute")  # Security: Rate limiting - 5 attempts per minute per IP
+async def login_for_swagger(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_session)
+):
+    return user_login(db, form_data)
+
+@public_router.post("/login", response_model=LoginResponse)
+@limiter.limit("5/minute")  # Security: Rate limiting - 5 attempts per minute per IP
+async def login_for_frontend(
+    request: Request,
+    response: Response,
+    login_data: UserLogin,
+    db: Session = Depends(get_session)
+):
+    """Login endpoint for frontend clients"""
+    try:
+        login_response = user_login(db, login_data)
+        
+        # Set HTTP-only cookies for tokens (security: CRITICAL)
+        # Access token in secure HTTPOnly cookie
+        response.set_cookie(
+            key="access_token",
+            value=login_response.access_token,
+            httponly=True,
+            secure=True,  # HTTPS only
+            samesite="strict",  # CSRF protection
+            max_age=15 * 60  # 15 minutes
+        )
+        
+        # Refresh token in separate secure HTTPOnly cookie
+        response.set_cookie(
+            key="refresh_token",
+            value=login_response.refresh_token,
+            httponly=True,
+            secure=True,  # HTTPS only
+            samesite="strict",  # CSRF protection
+            max_age=60 * 60 * 24 * 7  # 7 days
+        )
+
+        # Return tokens in response so frontend can store in localStorage
+        # (tokens are ALSO in secure HTTPOnly cookies for double protection)
+        return LoginResponse(
+            access_token=login_response.access_token,
+            refresh_token=login_response.refresh_token,
+            expires_in=login_response.expires_in,
+            token_type="bearer",
+            user=login_response.user
+        )
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(e)}"
+        )
+
+@public_router.post("/signup", response_model=UserResponse)
+@limiter.limit("3/hour")  # Security: Rate limiting - 3 signups per hour per IP
+async def signup(
+    request: Request,
+    user_data: UserCreate,
+    db: Session = Depends(get_session)
+):
+    """Create new user account"""
+    try:
+        # Check existing user
+        existing_user = db.exec(
+            select(User).where(
+                (User.username == user_data.username) | 
+                (User.email == user_data.email)
+            )
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Account with this username or email already exists"
+            )
+
+        # Create user
+        new_user = await signup_user(user_data, db)
+        return UserResponse(
+            id=new_user.id,
+            username=new_user.username,
+            email=new_user.email,
+            role=new_user.role
+        )
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Signup failed: {str(e)}"
+        )
+
+# Protected routes (keep auth prefix)
+@user_router.get("/me", response_model=UserResponse)
+async def get_current_user_info(
+    current_user: Annotated[User, Depends(get_current_user)]
+):
+    return current_user
+
+@user_router.post("/logout")
+async def logout(
+    current_user: Annotated[User, Depends(get_current_user)],
+    response: Response,
+    refresh_token: str = Cookie(None),
+    access_token: str = Cookie(None),
+    db: Session = Depends(get_session)
+):
+    """Logout user and revoke tokens"""
+    try:
+        # Revoke refresh token (server-side revocation)
+        if refresh_token:
+            revoke_refresh_token(db, refresh_token)
+        
+        # Clear both cookies to ensure clean logout
+        response.delete_cookie(
+            key="access_token",
+            httponly=True,
+            secure=True,
+            samesite="strict"
+        )
+        response.delete_cookie(
+            key="refresh_token",
+            httponly=True,
+            secure=True,
+            samesite="strict"
+        )
+        
+        logger.info(f"User {current_user.username} logged out successfully")
+        return {"message": "Successfully logged out"}
+        
+    except Exception as e:
+        logger.error(f"Logout error for user {current_user.username}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Logout failed"
+        )
+        
+
+@public_router.post("/signup/bulk", response_model=List[UserResponse])
+async def bulk_signup(
+    current_user: Annotated[User, Depends(require_admin())],  # Only ADMIN can bulk signup
+    users_data: List[UserCreate],
+    db: Session = Depends(get_session)
+):
+    """Create multiple user accounts at once"""
+    created_users = []
+    try:
+        for user_data in users_data:
+            # Check if user already exists
+            existing_user = db.exec(
+                select(User).where(
+                    (User.username == user_data.username) |
+                    (User.email == user_data.email)
+                )
+            ).first()
+
+            if existing_user:
+                # Skip existing user (or raise error if you want strict behavior)
+                continue
+
+            # Create user
+            new_user = await signup_user(user_data, db)
+            created_users.append(
+                UserResponse(
+                    id=new_user.id,
+                    username=new_user.username,
+                    email=new_user.email,
+                    role=new_user.role
+                )
+            )
+
+        if not created_users:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No new users created (all already exist)."
+            )
+
+        return created_users
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Bulk signup failed: {str(e)}"
+        )
+
+
+@user_router.post("/refresh", response_model=LoginResponse)
+@limiter.limit("30/minute")  # Security: Rate limiting - 30 attempts per minute per IP (token refresh queue handles deduplication)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    refresh_token: str = Cookie(None),
+    db: Session = Depends(get_session)
+):
+    """Refresh access token using refresh token cookie"""
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token provided"
+        )
+
+    try:
+        # Verify the refresh token
+        payload = verify_token(refresh_token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+
+        # Get username from token
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload"
+            )
+
+        # Get user from database
+        user = get_user_by_username(db, username)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+
+        # Create new access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.username},
+            expires_delta=access_token_expires
+        )
+
+        # Set new access token in HTTPOnly cookie (security: CRITICAL)
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=True,  # HTTPS only
+            samesite="strict",  # CSRF protection
+            max_age=15 * 60  # 15 minutes
+        )
+
+        # Return empty token (client doesn't need it - it's in secure cookie)
+        return LoginResponse(
+            access_token="",  # Empty - token is in HTTPOnly cookie
+            refresh_token="",  # Empty - already in cookie
+            expires_in=15 * 60,
+            token_type="bearer",
+            user=UserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                role=user.role
+            )
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Could not refresh token: {str(e)}"
+        )
+
+# Admin routes - Only ADMIN can access these
+@admin_router.get("/", response_model=list[UserResponse])
+def read_users(
+    db: Annotated[Session, Depends(get_session)],
+    current_user: Annotated[User, Depends(require_admin())]  # Updated to new role checker
+) -> list[UserResponse]:
+    """Get all users (Admin only)"""
+    try:
+        users = db.exec(select(User)).all()
+        return [
+            UserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                role=user.role.value  # Convert enum to string
+            )
+            for user in users
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching users: {str(e)}"
+        )
+
+# Create new user (Admin only)
+@admin_router.post("/", response_model=UserResponse)
+def create_user(
+    user_data: UserCreate,
+    db: Annotated[Session, Depends(get_session)],
+    current_user: Annotated[User, Depends(require_admin())]  # Only ADMIN
+):
+    """Create a new user (Admin only)"""
+    try:
+        # Check if user already exists
+        existing_user = db.exec(
+            select(User).where(
+                (User.username == user_data.username) |
+                (User.email == user_data.email)
+            )
+        ).first()
+
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username or email already exists"
+            )
+
+        # Create new user
+        new_user = User(
+            username=user_data.username,
+            email=user_data.email,
+            password=user_data.password,  # Password will be hashed in the model
+            role=UserRole(user_data.role.upper()) if isinstance(user_data.role, str) else user_data.role
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        return UserResponse(
+            id=new_user.id,
+            username=new_user.username,
+            email=new_user.email,
+            role=new_user.role.value
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating user: {str(e)}"
+        )
+
+# Update user (Admin only)
+@admin_router.put("/{user_id}", response_model=UserResponse)
+def update_user_admin(
+    user_id: int,
+    user_data: UserUpdate,
+    db: Annotated[Session, Depends(get_session)],
+    current_user: Annotated[User, Depends(require_admin())]  # Only ADMIN
+):
+    """Update user information (Admin only)"""
+    try:
+        user = db.exec(select(User).where(User.id == user_id)).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+
+        # Prevent admin from changing their own role through this endpoint
+        if user.username == current_user.username and user_data.role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot change your own role"
+            )
+
+        # Update fields if provided
+        if user_data.username:
+            # Check if new username is already taken
+            existing_user = db.exec(
+                select(User).where(
+                    (User.username == user_data.username) & (User.id != user_id)
+                )
+            ).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken"
+                )
+            user.username = user_data.username
+
+        if user_data.email:
+            # Check if new email is already taken
+            existing_user = db.exec(
+                select(User).where(
+                    (User.email == user_data.email) & (User.id != user_id)
+                )
+            ).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already taken"
+                )
+            user.email = user_data.email
+
+        if user_data.password:
+            user.password = get_password_hash(user_data.password)  # Hash the password
+
+        if user_data.role:
+            user.role = UserRole(user_data.role.upper()) if isinstance(user_data.role, str) else user_data.role
+
+        db.commit()
+        db.refresh(user)
+
+        return UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            role=user.role.value
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating user: {str(e)}"
+        )
+
+# Delete user (Admin only)
+@admin_router.delete("/{user_id}")
+def delete_user_admin(
+    user_id: int,
+    db: Annotated[Session, Depends(get_session)],
+    current_user: Annotated[User, Depends(require_admin())]  # Only ADMIN
+):
+    """Delete user (Admin only)"""
+    try:
+        user = db.exec(select(User).where(User.id == user_id)).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+
+        # Prevent admin from deleting themselves
+        if user.username == current_user.username:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot delete your own account"
+            )
+
+        db.delete(user)
+        db.commit()
+
+        return {"message": "User deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting user: {str(e)}"
+        )
+
+@admin_router.patch("/{username}/role", response_model=UserResponse)
+async def update_user_role(
+    username: str,
+    current_user: Annotated[User, Depends(require_admin())],  # Only ADMIN can change roles
+    user_update: AdminUserUpdate,
+    db: Session = Depends(get_session)
+):
+    """Update user role as admin"""
+    # Find the user to update
+    user_to_update = db.exec(select(User).where(User.username == username)).first()
+    if not user_to_update:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f"User {username} not found"
+        )
+    
+    # Prevent admin from changing their own role
+    if user_to_update.username == current_user.username:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin cannot change their own role"
+        )
+    
+    try:
+        # Convert role to enum (ensure it's uppercase)
+        if isinstance(user_update.role, str):
+            new_role = UserRole(user_update.role.upper())
+        else:
+            new_role = user_update.role
+
+        # Update the user's role
+        user_to_update.role = new_role
+        db.commit()
+        db.refresh(user_to_update)
+        return user_to_update
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating user role: {str(e)}"
+        )
+```
+
+---
+
+## File: user/user_crud.py
+
+```python
+from datetime import timedelta
+from jose import JWTError, jwt
+from typing import Annotated, List
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from sqlmodel import Session, select
+from db import get_session
+from user.settings import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, REFRESH_TOKEN_EXPIRE_MINUTES, SECRET_KEY
+from user.services import create_access_token, get_password_hash, get_user_by_username, verify_password, oauth2_scheme
+from user.user_models import (
+    LoginResponse, 
+    TokenData, 
+    User, 
+    UserCreate,
+    UserLogin, 
+    UserResponse, 
+    UserUpdate,
+    UserRole,
+    AdminUserUpdate
+)
+
+def user_login(db: Session, form_data: UserLogin | OAuth2PasswordRequestForm) -> LoginResponse:
+    username = form_data.username
+    password = form_data.password
+    
+    user = get_user_by_username(db, username)
+    if not user or not verify_password(password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+
+    refresh_token_expires = timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    refresh_token = create_access_token(
+        data={"sub": user.username}, expires_delta=refresh_token_expires
+    )
+
+    user_response = UserResponse(
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        id=user.id
+    )
+
+    return LoginResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=int(access_token_expires.total_seconds()),
+        token_type="bearer",
+        user=user_response
+    )
+
+
+async def signup_user(user_data: UserCreate, db: Session) -> User:
+    """
+    Create a new user in the database
+    """
+    # Hash the password
+    hashed_password = get_password_hash(user_data.password)
+    
+    # Create new user instance without specifying the ID (let DB auto-increment)
+    db_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        password=hashed_password,
+        role=user_data.role
+    )
+    
+    try:
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return db_user
+    except Exception as e:
+        db.rollback()
+        raise e
+
+def update_user(user: UserUpdate, session: Session, current_user: User) -> User:
+    updated_user = session.exec(select(User).where(User.id == current_user.id)).first()
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    update_data = user.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        value = value if key != "password" else get_password_hash(value)
+        setattr(updated_user, key, value)
+    session.commit()
+    session.refresh(updated_user)
+    return updated_user
+
+def delete_user(session: Session, username: str) -> dict[str, str]:
+    user = session.exec(select(User).where(User.username == username)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    session.delete(user)
+    session.commit()
+    return {"message": f"User {username} deleted successfully"}
+
+async def get_token_from_cookie_or_header(
+    request: Request,
+    token_from_header: Annotated[Optional[str], Depends(oauth2_scheme)] = None
+) -> str:
+    """
+    Extract token from either Authorization header or HTTPOnly cookie.
+    Preference: Authorization header > access_token cookie
+    
+    This allows HTTPOnly cookies set by the login endpoint to work
+    alongside traditional Authorization headers.
+    """
+    # First try to get token from Authorization header
+    if token_from_header:
+        return token_from_header
+    
+    # Fallback to HTTPOnly cookie (for browser requests)
+    token_from_cookie = request.cookies.get("access_token")
+    if token_from_cookie:
+        return token_from_cookie
+    
+    # No token found in either location
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials - no token provided",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+async def get_current_user(
+    token: Annotated[str, Depends(get_token_from_cookie_or_header)], 
+    db: Annotated[Session, Depends(get_session)]
+) -> User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+        
+    user = get_user_by_username(db, username=token_data.username)
+    if user is None:
+        raise credentials_exception
+    return user
+
+# ==================== SIMPLE ROLE CHECKING SYSTEM ====================
+
+def require_roles(allowed_roles: List[UserRole]):
+    """
+    Simple role checker - allows access if user has any of the specified roles
+    Admin always has access to everything
+    """
+    def role_checker(current_user: Annotated[User, Depends(get_current_user)]):
+        # Admin has access to everything
+        if current_user.role == UserRole.ADMIN:
+            return current_user
+        
+        # Check if user has one of the allowed roles
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required roles: {[r.value for r in allowed_roles]}"
+            )
+        
+        return current_user
+    
+    return role_checker
+
+# Pre-defined role checkers for your specific use cases
+def require_admin():
+    """Only ADMIN can access"""
+    return require_roles([UserRole.ADMIN])
+
+def require_admin_principal():
+    """ADMIN or PRINCIPAL can access"""
+    return require_roles([UserRole.ADMIN, UserRole.PRINCIPAL])
+
+def require_admin_teacher_principal():
+    """ADMIN, TEACHER, or PRINCIPAL can access"""
+    return require_roles([UserRole.ADMIN, UserRole.TEACHER, UserRole.PRINCIPAL])
+
+def require_admin_teacher_principal_accountant():
+    """ADMIN, TEACHER, PRINCIPAL, or ACCOUNTANT can access"""
+    return require_roles([UserRole.ADMIN, UserRole.TEACHER, UserRole.PRINCIPAL, UserRole.ACCOUNTANT])
+
+def require_admin_accountant():
+    """ADMIN or ACCOUNTANT can access"""
+    return require_roles([UserRole.ADMIN, UserRole.ACCOUNTANT])
+
+def require_admin_fee_manager():
+    """ADMIN or FEE_MANAGER can access"""
+    return require_roles([UserRole.ADMIN, UserRole.FEE_MANAGER])
+
+def require_all_roles():
+    """All roles can access (ADMIN, TEACHER, ACCOUNTANT, FEE_MANAGER, PRINCIPAL, USER)"""
+    return require_roles([UserRole.ADMIN, UserRole.TEACHER, UserRole.ACCOUNTANT, 
+                         UserRole.FEE_MANAGER, UserRole.PRINCIPAL, UserRole.USER])
+
+def require_authenticated():
+    """Any authenticated user can access"""
+    def checker(current_user: Annotated[User, Depends(get_current_user)]):
+        return current_user
+    return checker
+
+# ==================== LEGACY FUNCTIONS (for backward compatibility) ====================
+
+async def check_admin_or_teacher(
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> User:
+    """Legacy function - Check if user is either admin or teacher"""
+    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators and teachers can access this resource"
+        )
+    return current_user
+
+async def check_admin(
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> User:
+    """Legacy function - Check if user is admin"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators can access this resource"
+        )
+    return current_user
+
+async def check_authenticated_user(
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> User:
+    """Legacy function - Check if user is authenticated"""
+    return current_user
+
+# ==================== ADMIN USER MANAGEMENT ====================
+
+async def admin_update_user(
+    username: str,
+    user_update: AdminUserUpdate, 
+    db: Session,
+    current_user: Annotated[User, Depends(require_admin)]  # Updated to use new role checker
+) -> User:
+    """Update user role as admin"""
+    
+    # Find the user to update
+    user_to_update = db.exec(select(User).where(User.username == username)).first()
+    if not user_to_update:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f"User {username} not found"
+        )
+    
+    # Prevent admin from changing their own role
+    if user_to_update.username == current_user.username:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin cannot change their own role"
+        )
+    
+    try:
+        # Convert role to enum (ensure it's uppercase)
+        if isinstance(user_update.role, str):
+            new_role = UserRole(user_update.role.upper())
+        else:
+            new_role = user_update.role
+
+        # Update the user's role
+        user_to_update.role = new_role
+        db.commit()
+        db.refresh(user_to_update)
+        return user_to_update
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating role: {str(e)}")  # Debugging info
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating user role: {str(e)}"
+        )
+
+# ==================== PER-USER DATA FILTERING (for USER role) ====================
+
+def validate_student_access(current_user: User, requested_student_id: int):
+    """
+    Validate that a user can access a student's data.
+    - ADMIN, PRINCIPAL, TEACHER can access any student's data
+    - USER (Student) can only access their own data
+    - Raises 403 if unauthorized
+    """
+    # Admin, Principal, and Teachers can access all student data
+    if current_user.role in [UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.TEACHER]:
+        return True
+    
+    # USER role (Student) can only access their own data
+    if current_user.role == UserRole.USER:
+        # Assuming user.id represents the student_id for USER role users
+        if current_user.id != requested_student_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access your own student records"
+            )
+        return True
+    
+    # Other roles (ACCOUNTANT, FEE_MANAGER) cannot access student data directly
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Your role does not have permission to access student data"
+    )
+
+def can_view_fee_data(current_user: User):
+    """
+    Check if a user can view fee data.
+    - ADMIN, PRINCIPAL, ACCOUNTANT, FEE_MANAGER can view all fees
+    - USER (Student) can only view their own fees
+    """
+    return current_user.role in [UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.ACCOUNTANT, UserRole.FEE_MANAGER, UserRole.USER]
+
+def can_view_attendance_data(current_user: User):
+    """
+    Check if a user can view attendance data.
+    - ADMIN, PRINCIPAL, TEACHER can view all attendance
+    - USER (Student) can only view their own attendance
+    """
+    return current_user.role in [UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.TEACHER, UserRole.USER]
+
+def require_admin_accountant_fee_manager():
+    """ADMIN, ACCOUNTANT, or FEE_MANAGER can access"""
+    return require_roles([UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FEE_MANAGER])
+```
+
+---
+
+## File: user/services.py
+
+```python
+from jose import JWTError, jwt
+import bcrypt
+from typing import Annotated, Optional
+from fastapi.openapi.models import OAuthFlows
+from fastapi.openapi.models import OAuthFlowPassword
+from fastapi.security import OAuth2PasswordBearer
+from user.settings import *
+from datetime import datetime, timedelta, timezone
+from sqlmodel import Session, select
+from fastapi import HTTPException, status, Depends
+from db import get_session
+from typing import Annotated
+from passlib.context import CryptContext
+
+from pydantic import EmailStr
+from typing import Union, Any
+from user.user_models import User  # Import the User model
+
+
+credentials_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Could not validate credentials",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+# Password context for hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Update OAuth2 scheme to use correct path
+# auto_error=False allows None to be returned if token is missing, 
+# instead of raising 403. This allows fallback to cookie-based auth.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login-swagger", auto_error=False)  
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verify a plain password against its bcrypt hash.
+    
+    Handles bcrypt's 72-byte UTF-8 limit by truncating if necessary.
+    Note: Passwords should be validated at the Pydantic model level
+    to ensure they don't exceed 72 bytes.
+    """
+    if not plain_password or not hashed_password:
+        return False
+    
+    if not isinstance(plain_password, str):
+        return False
+    
+    try:
+        password_bytes = plain_password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+        return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
+    except Exception:
+        return False
+
+def get_password_hash(password: str) -> str:
+    """
+    Hash the password before storing it in the database.
+    
+    Password length is validated at the Pydantic model level to ensure
+    it doesn't exceed bcrypt's 72-byte UTF-8 limit.
+    """
+    if not isinstance(password, str):
+        raise ValueError('Password must be a string')
+    
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+    
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
+
+def get_user_by_username(db: Session, username: str) -> User:
+    """Get the user by username."""
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": "Bearer"},
+            detail="Invalid credentials"
+        )
+
+    user = db.exec(select(User).where(User.username == username)).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    return user
+
+def get_user_by_id(db: Session, userid: int) -> User:
+    """
+    Get the user by user id.
+    Args:
+        db (Session): The database session.
+        userid (int): The user id.
+    Returns:
+        User: The user object.
+        """
+    if userid is None:
+        raise  HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                             headers={"WWW-Authenticate": 'Bearer'},
+                             detail={"error": "invalid_token", "error_description": "The access token expired"})
+    user = db.get(User, userid)
+
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User not found")
+    
+    return user
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)], 
+    db: Annotated[Session, Depends(get_session)]
+) -> User:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        exp = payload.get("exp")
+        
+        if username is None:
+            raise credentials_exception
+            
+        # Check token expiration
+        if datetime.now().timestamp() > exp:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        user = get_user_by_username(db, username)
+        return user
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+)
+
+
+def get_user_by_email(db:Session,user_email: EmailStr) -> User:
+    """
+    Get the user by email.
+    Args:
+        db (Session): The database session.
+        user_email (EmailStr): The email of the user.
+    Returns:
+        User: The user object.
+    """
+    if user_email is None:
+        raise  HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,headers={"WWW-Authenticate": 'Bearer'},detail={"error": "invalid_token", "error_description": "The access token expired"})
+
+    user = db.get(User, user_email)
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User not found")
+    return user
+
+def authenticate_user(db, username: str, password: str) -> User:
+    """
+    Authenticate the user.
+    Args:
+        db (Session): The database session.
+        username (str): The username of the user.
+        password (str): The password of the user.
+    Returns:
+        User: The user object.
+    """
+    user = get_user_by_username(db, username)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    if not verify_password(password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    return user
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create an access token with expiration."""
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
+    to_encode.update({"exp": expire})
+    try:
+        return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating access token: {str(e)}"
+        )
+
+def create_refresh_token(data: Union[str, Any], expires_delta: int = None) -> str:
+
+    """
+    Create a refresh token.
+    Args:
+        data (Union[str, Any]): The data to encode in the token.
+        expires_delta (int): The time delta for the token to expire.
+    Returns:
+        str: The refresh token.
+    """
+    if expires_delta is not None:
+        expires_delta = datetime.now() + expires_delta
+    else:
+        expires_delta = datetime.now() + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    
+    to_encode = {"exp": expires_delta, "sub": str(data)}
+    encoded_jwt = jwt.encode(to_encode, JWT_REFRESH_SECRET_KEY, ALGORITHM)
+    return encoded_jwt
+
+def verify_refresh_token(db: Session, token: str) -> User:
+    """
+    Validates the refresh token and returns the associated user if valid.
+    Security: Checks revocation status and expiration.
+    """
+    try:
+        payload = jwt.decode(token, JWT_REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
+
+        # Use parameterized query to prevent SQL injection
+        stored_token = db.exec(
+            select(RefreshToken).where(RefreshToken.token == token)
+        ).first()
+        
+        if not stored_token:
+            logger.warning(f"Token not found in database for user_id: {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token not found"
+            )
+        
+        # Check if expired
+        if stored_token.is_expired():
+            logger.warning(f"Token expired for user_id: {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token expired"
+            )
+        
+        # Check if revoked
+        if stored_token.is_revoked():
+            logger.warning(f"Token was revoked for user_id: {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked"
+            )
+
+        return get_user_by_username(db, user_id)
+
+    except JWTError as e:
+        logger.error(f"JWT decode error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+def revoke_refresh_token(db: Session, token: str) -> bool:
+    """
+    Revokes a refresh token (used for logout).
+    Security: Marks token as revoked instead of deleting (audit trail).
+    """
+    try:
+        # Use parameterized query to prevent SQL injection
+        stored_token = db.exec(
+            select(RefreshToken).where(RefreshToken.token == token)
+        ).first()
+        
+        if stored_token and not stored_token.is_revoked():
+            stored_token.revoked_at = datetime.utcnow()
+            db.add(stored_token)
+            db.commit()
+            logger.info(f"Token revoked for user_id: {stored_token.user_id}")
+            return True
+        return False
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error revoking token: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error revoking token"
+        )
+
+def verify_token(token: str):
+    try:
+        return jwt.decode(token, JWT_REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+```
+
+---
+
+## File: user/settings.py
+
+```python
+from starlette.config import Config
+
+
+try:
+    config = Config(".env")
+except FileNotFoundError:
+    config = Config()
+
+DATABASE_URL = config("DATABASE_URL", cast=str)
+SECRET_KEY = config("SECRET_KEY", cast=str)
+ALGORITHM = config("ALGORITHM", cast=str)
+ACCESS_TOKEN_EXPIRE_MINUTES = config("ACCESS_TOKEN_EXPIRE_MINUTES", cast=int)
+REFRESH_TOKEN_EXPIRE_MINUTES = config("REFRESH_TOKEN_EXPIRE_MINUTES", cast=int)
+JWT_REFRESH_SECRET_KEY = config("JWT_REFRESH_SECRET_KEY", cast=str)
+```
+
+---
+
+## File: frontend/src/context/RoleContext.tsx
+
+```typescript
+"use client";
+
+import React, { createContext, useState, useContext, useEffect } from "react";
+
+interface RoleContextType {
+  role: string | null;
+  setRole: (role: string) => void;
+  clearRole: () => void;
+  isLoading: boolean;
+}
+
+const RoleContext = createContext<RoleContextType | undefined>(undefined);
+
+export function RoleProvider({ children }: { children: React.ReactNode }) {
+  const [role, setRole] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Guard against SSR — storage is only available in browser
+    if (typeof window === "undefined") {
+      setIsLoading(false);
+      return;
+    }
+
+    // 1. Try sessionStorage first (set by setRole() calls within the same tab)
+    const storedRole = sessionStorage.getItem("userRole");
+
+    if (storedRole) {
+      setRole(storedRole);
+      setIsLoading(false);
+      return;
+    }
+
+    // 2. Fallback: extract role from the user object in localStorage.
+    //    This handles the case where the login page saves the full user object
+    //    to localStorage but doesn't separately call context.setRole().
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        if (user?.role) {
+          console.log("RoleContext - Recovered role from localStorage:", user.role);
+          setRole(user.role);
+          // Sync into sessionStorage so subsequent checks are fast
+          sessionStorage.setItem("userRole", user.role);
+        } else {
+          console.warn("RoleContext - user object in localStorage has no role field:", user);
+        }
+      } catch {
+        console.error("RoleContext - Failed to parse user from localStorage");
+      }
+    } else {
+      console.warn("RoleContext - No user found in localStorage or sessionStorage");
+    }
+
+    setIsLoading(false);
+  }, []);
+
+  const setRoleAndStore = (newRole: string) => {
+    setRole(newRole);
+    // Write to BOTH storages so either path works on next load
+    sessionStorage.setItem("userRole", newRole);
+    // Also update the role field inside the stored user object
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        user.role = newRole;
+        localStorage.setItem("user", JSON.stringify(user));
+      }
+    } catch {
+      // Non-critical — sessionStorage is the primary source
+    }
+  };
+
+  const clearRole = () => {
+    setRole(null);
+    sessionStorage.removeItem("userRole");
+    localStorage.removeItem("user");
+    localStorage.removeItem("userRole");
+  };
+
+  return (
+    <RoleContext.Provider
+      value={{
+        role,
+        setRole: setRoleAndStore,
+        clearRole,
+        isLoading,
+      }}
+    >
+      {children}
+    </RoleContext.Provider>
+  );
+}
+
+export function useRole() {
+  const context = useContext(RoleContext);
+  if (context === undefined) {
+    throw new Error("useRole must be used within a RoleProvider");
+  }
+  return context;
+}
+```
+
+---
+
+## File: frontend/src/utils/rolePermissions.ts
+
+```typescript
+// Role-based access control mapping
+export type UserRole =
+  | "ADMIN"
+  | "PRINCIPAL"
+  | "TEACHER"
+  | "ACCOUNTANT"
+  | "FEE_MANAGER"
+  | "USER";
+
+export type Section =
+  | "dashboard"
+  | "attendance"
+  | "students"
+  | "teachers"
+  | "classes"
+  | "fees"
+  | "expenses"
+  | "income"
+  | "attendance_time"
+  | "salary"
+  | "setup";
+
+// Role to accessible sections mapping
+const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
+  ADMIN: [
+    "dashboard",
+    "attendance",
+    "students",
+    "teachers",
+    "classes",
+    "fees",
+    "expenses",
+    "income",
+    "attendance_time",
+    "salary",
+    "setup",
+  ],
+  PRINCIPAL: [
+    "dashboard",
+    "attendance",
+    "students",
+    "teachers",
+    "classes",
+  ],
+  TEACHER: ["attendance", "students", "dashboard"],
+  ACCOUNTANT: ["expenses", "fees", "income", "dashboard", "salary"],
+  FEE_MANAGER: ["expenses", "fees", "income", "dashboard", "students"],
+  USER: ["dashboard"], // Students can access own attendance & fees through filtered endpoints
+};
+
+/**
+ * Check if a user with a given role can access a section
+ */
+export function canAccessSection(role: string | null, section: string): boolean {
+  if (!role) return false;
+  if (!isValidRole(role)) return false;
+
+  const sections = ROLE_PERMISSIONS[role as UserRole];
+  return sections.includes(section as Section);
+}
+
+/**
+ * Get all accessible sections for a role
+ */
+export function getAccessibleSections(role: string | null): Section[] {
+  if (!role || !isValidRole(role)) return [];
+  return ROLE_PERMISSIONS[role as UserRole];
+}
+
+/**
+ * Check if a user can access a given route path
+ */
+export function canAccessRoute(role: string | null, pathname: string): boolean {
+  if (!role) return false;
+
+  // Extract section from pathname
+  // Paths like /dashboard/students -> students
+  // /dashboard/attendance/time -> attendance, etc.
+  const parts = pathname.split("/").filter(Boolean);
+
+  if (parts[0] !== "dashboard") {
+    // Routes outside dashboard (login, unauthorized) are generally accessible
+    return true;
+  }
+
+  if (parts.length === 1) {
+    // Just /dashboard
+    return canAccessSection(role, "dashboard");
+  }
+
+  // Normalize singular → plural to match Section type
+  const sectionMap: Record<string, string> = { expense: "expenses" };
+  const raw = parts[1];
+  const section = sectionMap[raw] ?? raw;
+  return canAccessSection(role, section);
+}
+
+/**
+ * Validate if a string is a valid role
+ */
+export function isValidRole(role: string): boolean {
+  return ["ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "FEE_MANAGER", "USER"].includes(
+    role
+  );
+}
+
+/**
+ * Get display name for a role
+ */
+export function getRoleDisplayName(role: string | null): string {
+  if (!role) return "Unknown";
+  
+  const displayNames: Record<UserRole, string> = {
+    ADMIN: "Administrator",
+    PRINCIPAL: "Principal",
+    TEACHER: "Teacher",
+    ACCOUNTANT: "Accountant",
+    FEE_MANAGER: "Fee Manager",
+    USER: "Student",
+  };
+
+  return displayNames[role as UserRole] || role;
+}
+
+/**
+ * Check if a submenu item should be visible for a given role
+ * Handles read-only restrictions (e.g., PRINCIPAL and ACCOUNTANT can view fees but not add)
+ */
+export function canAccessSubmenuItem(role: string | null, submenuPath: string): boolean {
+  if (!role) return false;
+
+  // PRINCIPAL: can view fees but not add
+  if (role === "PRINCIPAL" && submenuPath.includes("/fees/add_fees")) {
+    return false;
+  }
+
+  // Deleted Students: only ADMIN and PRINCIPAL can access
+  if (submenuPath.includes("/students/deleted")) {
+    return role === "ADMIN" || role === "PRINCIPAL";
+  }
+
+  // Manage User: only ADMIN can access
+  if (submenuPath.includes("/setup/manage_user")) {
+    return role === "ADMIN";
+  }
+
+  // TEACHER: can only access Mark Attendance and View Attendance submenu items
+  if (role === "TEACHER") {
+    return (
+      submenuPath.includes("/attendance/mark_attendance") ||
+      submenuPath.includes("/attendance/view_attendance") ||
+      submenuPath.includes("/students") && !submenuPath.includes("/deleted")
+    );
+  }
+
+  // All other cases follow the section-based access control
+  return true;
+}
+```
+
+---
+
+## File: frontend/src/components/ProtectedRoute.tsx
+
+```typescript
+'use client';
+
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState, ReactNode } from 'react';
+
+interface ProtectedRouteProps {
+  children: ReactNode;
+}
+
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      router.push('/login');
+    } else {
+      setAuthorized(true);
+    }
+  }, [router, pathname]); // re-check on every route change
+
+  if (!authorized) return null; // or a loading spinner
+  return <>{children}</>;
+}
+```
+
+---
+
 **END OF COMPLETE FILES REFERENCE**
 
 This document contains all code from the requested files, organized by filename with clear headers.

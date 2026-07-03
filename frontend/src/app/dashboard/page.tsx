@@ -6,6 +6,7 @@ import { AccountantDashboard } from "@/components/dashboard/AccountantDashboard"
 import { StudentDashboard } from "@/components/dashboard/StudentDashboard";
 import { PrincipalDashboard } from "@/components/dashboard/PrincipalDashboard";
 import { AdminDashboard } from "@/components/dashboard/AdminDashboard";
+import { FeeManagerDashboard } from "@/components/dashboard/FeeManagerDashboard";
 
 export default function DashboardRouter() {
   const { role, isLoading } = useRole();
@@ -33,8 +34,9 @@ export default function DashboardRouter() {
     case "TEACHER":
       return <TeacherDashboard />;
     case "ACCOUNTANT":
-    case "FEE_MANAGER":
       return <AccountantDashboard />;
+    case "FEE_MANAGER":
+      return <FeeManagerDashboard />;
     case "USER":
       return <StudentDashboard />;
     default:

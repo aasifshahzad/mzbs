@@ -197,7 +197,7 @@ export function PrincipalDashboard() {
   const [attendanceSummaryData, setAttendanceSummaryData] = useState<AttendanceSummaryData | null>(null);
   const [attendanceSummaryLoading, setAttendanceSummaryLoading] = useState(true);
   const [classError, setClassError] = useState(false);
-  const [selectedAttendanceTime, setSelectedAttendanceTime] = useState<string | null>(null);
+  const [selectedAttendanceTime, setSelectedAttendanceTime] = useState<string>("All");
 
   const { data: summaryData, isError: summaryError } = useQuery({
     queryKey: ["dashboard-summary-principal", today],
@@ -221,7 +221,7 @@ export function PrincipalDashboard() {
       setAttendanceSummaryData(summaryData.attendance_summary as AttendanceSummaryData);
       setAttendanceSummaryLoading(false);
     }
-  }, [summaryData]);
+  }, [summaryData, summaryError, studentSummaryData, attendanceSummaryData]);
 
   const fetchStudentSummary = useCallback(async (date: string) => {
     setStudentSummaryLoading(true);
@@ -257,12 +257,12 @@ export function PrincipalDashboard() {
   useEffect(() => {
     if (isInitialMount.current) { isInitialMount.current = false; return; }
     fetchStudentSummary(distDate);
-  }, [distDate]);
+  }, [distDate, fetchStudentSummary]);
 
   useEffect(() => {
     if (isInitialMount.current) { isInitialMount.current = false; return; }
     fetchAttendanceSummary(classDate);
-  }, [classDate]);
+  }, [classDate, fetchAttendanceSummary]);
 
   // ── Extract available attendance times and set default ──
   useEffect(() => {
@@ -272,7 +272,7 @@ export function PrincipalDashboard() {
       );
       // Do NOT sort - backend already provides correct order
       if (uniqueTimes.length > 0 && !selectedAttendanceTime) {
-        setSelectedAttendanceTime(uniqueTimes[0]); // Select first time from backend
+        setSelectedAttendanceTime("All"); // Show all classes across all times by default
       }
     }
   }, [attendanceSummaryData, selectedAttendanceTime]);
@@ -291,28 +291,36 @@ export function PrincipalDashboard() {
 
   // Extract available attendance times
   const availableAttendanceTimes = attendanceSummaryData?.summary
-    ? Array.from(new Set(attendanceSummaryData.summary.map(item => item.attendance_time)))
+    ? ["All", ...Array.from(new Set(attendanceSummaryData.summary.map(item => item.attendance_time)))]
     : [];
 
   // Filter attendance summary by selected time
   const filteredAttendanceSummary = attendanceSummaryData?.summary
-    ? attendanceSummaryData.summary.filter(item => item.attendance_time === selectedAttendanceTime)
+    ? (selectedAttendanceTime && selectedAttendanceTime !== "All"
+        ? attendanceSummaryData.summary.filter(item => item.attendance_time === selectedAttendanceTime)
+        : attendanceSummaryData.summary)
     : [];
 
   // Build filtered chart data for selected time only
   const filteredChartData = filteredAttendanceSummary.length > 0
     ? (() => {
-        // Group by class name
-        const classByName = new Map<string, typeof filteredAttendanceSummary[0]>();
+        // Aggregate across all times by class name
+        const classByName = new Map<string, { class_name: string; attendance_values: Record<string, number> }>();
         filteredAttendanceSummary.forEach(item => {
           if (!classByName.has(item.class_name)) {
-            classByName.set(item.class_name, item);
+            classByName.set(item.class_name, {
+              class_name: item.class_name,
+              attendance_values: { ...item.attendance_values },
+            });
+          } else {
+            const existing = classByName.get(item.class_name)!;
+            Object.entries(item.attendance_values).forEach(([key, value]) => {
+              existing.attendance_values[key] = (existing.attendance_values[key] || 0) + value;
+            });
           }
         });
 
-        const sortedClasses = Array.from(classByName.entries())
-          .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([name]) => name);
+        const sortedClasses = Array.from(classByName.keys()).sort((a, b) => a.localeCompare(b));
 
         // Attendance types
         const attendanceTypes = ["Present", "Absent", "Late", "Leave"];
@@ -524,7 +532,7 @@ export function PrincipalDashboard() {
               ) : classError ? (
                 <EmptyState message="Failed to load data. Try refreshing." />
               ) : !attendanceSummaryData || filteredChartData.data.length === 0 ? (
-                <EmptyState message={`No class attendance data for ${formatDisplayDate(classDate)} at ${selectedAttendanceTime}`} />
+                <EmptyState message={`No class attendance data for ${formatDisplayDate(classDate)}${selectedAttendanceTime && selectedAttendanceTime !== "All" ? ` at ${selectedAttendanceTime}` : ""}`} />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -574,39 +582,48 @@ export function PrincipalDashboard() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                    {filteredAttendanceSummary.map((item, i) => (
-                      <tr key={i} className="hover:bg-gray-50 transition-colors duration-150">
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          {item.class_name}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-700 whitespace-nowrap">
-                          {item.attendance_time}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-700 whitespace-nowrap">
-                          {item.total_students || 0}
-                        </td>
-                        <td className="px-4 py-3 text-sm whitespace-nowrap">
-                          <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800 font-medium">
-                            {getAttVal(item.attendance_values, "present")}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm whitespace-nowrap">
-                          <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800 font-medium">
-                            {getAttVal(item.attendance_values, "absent")}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm whitespace-nowrap">
-                          <span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 font-medium">
-                            {getAttVal(item.attendance_values, "late")}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm whitespace-nowrap">
-                          <span className="px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 font-medium">
-                            {getAttVal(item.attendance_values, "leave")}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredAttendanceSummary.map((item, i) => {
+                      const totalStudents = item.total_students || 0;
+                      const present = getAttVal(item.attendance_values, "present");
+                      const absent = getAttVal(item.attendance_values, "absent");
+                      const late = getAttVal(item.attendance_values, "late");
+                      const leave = getAttVal(item.attendance_values, "leave");
+                      const unmarked = totalStudents - (present + absent + late + leave);
+                      const isFullyUnmarked = totalStudents > 0 && unmarked === totalStudents;
+                      return (
+                        <tr key={i} className={`transition-colors duration-150 ${isFullyUnmarked ? "bg-rose-50 hover:bg-rose-100" : "hover:bg-gray-50"}`}>
+                          <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            {item.class_name}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-700 whitespace-nowrap">
+                            {item.attendance_time}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-semibold text-gray-700 whitespace-nowrap">
+                            {totalStudents}
+                          </td>
+                          <td className="px-4 py-3 text-sm whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800 font-medium">
+                              {present}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800 font-medium">
+                              {absent}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 font-medium">
+                              {late}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 font-medium">
+                              {leave}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -1,14 +1,12 @@
 "use client";
 import { ExpenseCategory } from "@/models/expense/expense";
 import React, { useEffect, useState } from "react";
-import { useDebouncedCallback } from "use-debounce";
 import { ExpenseAPI as API } from "@/api/Expense/ExpenseAPI";
-import { useForm } from "react-hook-form";
 import { usePrint } from "@/components/print/usePrint";
 import { useRole } from "@/context/RoleContext";
 import { formatDateToDDMMYY } from "@/utils/dateFormatter";
 import { extractArrayData } from "@/utils/apiResponse";
-import { Printer, Edit2, Trash2, X } from "lucide-react";
+import { Printer, Edit2, Trash2, X, ChevronFirst, ChevronLast } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -69,16 +67,12 @@ const getExpenseCategoryIdByName = (
     ?.expense_cat_name_id;
 
 const ViewExpense = () => {
-  const {
-    register,
-    formState: { errors },
-  } = useForm<ExpenseFormValues>();
   const { printRecords } = usePrint();
   const { role } = useRole();
   const [isLoading, setIsLoading] = useState(false);
   const [expenseCategory, setExpenseCategory] = useState<ExpenseCategory[]>([]);
   const [expenseData, setExpenseData] = useState<ExpenseDataItem[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("0");
+  const [selectedCategory, setSelectedCategory] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pageSize] = useState(10);
@@ -209,8 +203,8 @@ const ViewExpense = () => {
       setEditingExpense(null);
       
       // Refresh the data based on current selection
-      if (selectedCategory && selectedCategory !== "") {
-        getExpense(Number(selectedCategory));
+      if (selectedCategory !== 0) {
+        getExpense(selectedCategory);
       } else {
         setExpenseData([]);
       }
@@ -243,22 +237,14 @@ const ViewExpense = () => {
             Category:{" "}
           </label>
           <select
-            {...register("category_id", { valueAsNumber: true })}
             className="w-[14rem] border bg-white rounded-md px-3 py-2 focus:ring focus:ring-indigo-300 dark:bg-background dark:text-gray-300"
             value={selectedCategory}
-            onChange={useDebouncedCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-              const value = e.target.value;
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+              const value = Number(e.target.value);
               setSelectedCategory(value);
-              if (value === "") {
-                setExpenseData([]);
-                setCurrentPage(1);
-                setTotalPages(1);
-              } else {
-                getExpense(Number(value), 1);
-              }
-            }, 300)}
+              getExpense(value, 1);
+            }}
           >
-            <option value="" disabled>-- Select Category --</option>
             <option value={0}>All</option>
             {expenseCategory.map((category) => (
               <option
@@ -269,10 +255,6 @@ const ViewExpense = () => {
               </option>
             ))}
           </select>
-          <p className="text-red-500 text-xs">
-            {typeof errors.category_id?.message === "string" &&
-              errors.category_id?.message}
-          </p>
         </div>
       </form>
 
@@ -302,8 +284,21 @@ const ViewExpense = () => {
                   type="button"
                   variant="outline"
                   size="sm"
+                  onClick={() => getExpense(Number(selectedCategory), 1)}
+                  disabled={currentPage === 1 || isLoading}
+                  className="px-2 sm:px-3"
+                  aria-label="First page"
+                >
+                  <ChevronFirst className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">First</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => getExpense(Number(selectedCategory), Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1 || isLoading}
+                  className="px-2 sm:px-3"
                 >
                   Previous
                 </Button>
@@ -313,8 +308,21 @@ const ViewExpense = () => {
                   size="sm"
                   onClick={() => getExpense(Number(selectedCategory), Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages || isLoading}
+                  className="px-2 sm:px-3"
                 >
                   Next
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => getExpense(Number(selectedCategory), totalPages)}
+                  disabled={currentPage === totalPages || isLoading}
+                  className="px-2 sm:px-3"
+                  aria-label="Last page"
+                >
+                  <span className="hidden sm:inline mr-1">Last</span>
+                  <ChevronLast className="h-4 w-4" />
                 </Button>
               </div>
             </div>

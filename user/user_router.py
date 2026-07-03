@@ -633,7 +633,7 @@ def create_user(
         new_user = User(
             username=user_data.username,
             email=user_data.email,
-            password=user_data.password,  # Password will be hashed in the model
+            password=get_password_hash(user_data.password),  # Hash password for security
             role=UserRole(user_data.role.upper()) if isinstance(user_data.role, str) else user_data.role
         )
 

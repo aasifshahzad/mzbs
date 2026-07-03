@@ -10,7 +10,7 @@ import { GetFeeModel} from "@/models/Fees/Fee";
 import { toast } from "sonner";
 import { usePrint } from "@/components/print/usePrint";
 import { useRole } from "@/context/RoleContext";
-import { Printer } from "lucide-react";
+import { Printer, ChevronFirst, ChevronLast } from "lucide-react";
 import EditFees from "./EditFees";
 import DelConfirmMsg from "../DelConfMsg";
 import {
@@ -292,8 +292,21 @@ const filteredFeesData = feesData.filter((fee) => {
                   type="button"
                   variant="outline"
                   size="sm"
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1 || isLoading}
+                  className="px-2 sm:px-3"
+                  aria-label="First page"
+                >
+                  <ChevronFirst className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">First</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1 || isLoading}
+                  className="px-2 sm:px-3"
                 >
                   Previous
                 </Button>
@@ -303,8 +316,21 @@ const filteredFeesData = feesData.filter((fee) => {
                   size="sm"
                   onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages || isLoading}
+                  className="px-2 sm:px-3"
                 >
                   Next
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages || isLoading}
+                  className="px-2 sm:px-3"
+                  aria-label="Last page"
+                >
+                  <span className="hidden sm:inline mr-1">Last</span>
+                  <ChevronLast className="h-4 w-4" />
                 </Button>
               </div>
             </div>

@@ -361,7 +361,7 @@ export function AdminDashboard() {
   const [attendanceSummaryData, setAttendanceSummaryData] = useState<AttendanceSummaryData | null>(null);
   const [attendanceSummaryLoading, setAttendanceSummaryLoading] = useState(true);
   const [classError, setClassError] = useState(false);
-  const [selectedAttendanceTime, setSelectedAttendanceTime] = useState<string | null>(null);
+  const [selectedAttendanceTime, setSelectedAttendanceTime] = useState<string>("All");
 
   // ── Section: Financial (shared year) ──
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -566,7 +566,7 @@ export function AdminDashboard() {
       );
       // Do NOT sort - backend already provides correct order
       if (uniqueTimes.length > 0 && !selectedAttendanceTime) {
-        setSelectedAttendanceTime(uniqueTimes[0]); // Select first time from backend
+        setSelectedAttendanceTime("All"); // Show all classes across all times by default
       }
     }
   }, [attendanceSummaryData, selectedAttendanceTime]);
@@ -584,28 +584,36 @@ export function AdminDashboard() {
 
   // Extract available attendance times
   const availableAttendanceTimes = attendanceSummaryData?.summary
-    ? Array.from(new Set(attendanceSummaryData.summary.map(item => item.attendance_time)))
+    ? ["All", ...Array.from(new Set(attendanceSummaryData.summary.map(item => item.attendance_time)))]
     : [];
 
   // Filter attendance summary by selected time
   const filteredAttendanceSummary = attendanceSummaryData?.summary
-    ? attendanceSummaryData.summary.filter(item => item.attendance_time === selectedAttendanceTime)
+    ? (selectedAttendanceTime && selectedAttendanceTime !== "All"
+        ? attendanceSummaryData.summary.filter(item => item.attendance_time === selectedAttendanceTime)
+        : attendanceSummaryData.summary)
     : [];
 
   // Build filtered chart data for selected time only
   const filteredChartData = filteredAttendanceSummary.length > 0
     ? (() => {
-        // Group by class name
-        const classByName = new Map<string, typeof filteredAttendanceSummary[0]>();
+        // Aggregate across all times by class name
+        const classByName = new Map<string, { class_name: string; attendance_values: Record<string, number> }>();
         filteredAttendanceSummary.forEach(item => {
           if (!classByName.has(item.class_name)) {
-            classByName.set(item.class_name, item);
+            classByName.set(item.class_name, {
+              class_name: item.class_name,
+              attendance_values: { ...item.attendance_values },
+            });
+          } else {
+            const existing = classByName.get(item.class_name)!;
+            Object.entries(item.attendance_values).forEach(([key, value]) => {
+              existing.attendance_values[key] = (existing.attendance_values[key] || 0) + value;
+            });
           }
         });
 
-        const sortedClasses = Array.from(classByName.entries())
-          .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([name]) => name);
+        const sortedClasses = Array.from(classByName.keys()).sort((a, b) => a.localeCompare(b));
 
         // Attendance types
         const attendanceTypes = ["present", "absent", "late", "leave", "unmarked"];
@@ -850,12 +858,14 @@ export function AdminDashboard() {
                       <label htmlFor="admin-time-select" className="text-sm font-medium text-gray-600 whitespace-nowrap">Time:</label>
                       <select
                         id="admin-time-select"
-                        value={selectedAttendanceTime || ""}
+                        value={selectedAttendanceTime || "All"}
                         onChange={(e) => setSelectedAttendanceTime(e.target.value)}
                         className="bg-white border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
                       >
                         {availableAttendanceTimes.map((time) => (
-                          <option key={time} value={time}>{time}</option>
+                          <option key={time} value={time}>
+                            {time === "All" ? "All Times" : time}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -877,7 +887,7 @@ export function AdminDashboard() {
               ) : classError ? (
                 <EmptyState message="Failed to load data. Try refreshing." />
               ) : !attendanceSummaryData || filteredChartData.data.length === 0 ? (
-                <EmptyState message={`No class attendance data for ${formatDisplayDate(classDate)} at ${selectedAttendanceTime}`} />
+                <EmptyState message={`No class attendance data for ${formatDisplayDate(classDate)}${selectedAttendanceTime && selectedAttendanceTime !== "All" ? ` at ${selectedAttendanceTime}` : ""}`} />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -934,8 +944,9 @@ export function AdminDashboard() {
                       const leave   = getAttVal(item.attendance_values, "leave");
                       const unmarked = getAttVal(item.attendance_values, "unmarked");
                       const totalStudents = item.total_students || 0;
+                      const isFullyUnmarked = totalStudents > 0 && unmarked === totalStudents;
                       return (
-                        <tr key={i} className="hover:bg-gray-50 transition-colors duration-150">
+                        <tr key={i} className={`transition-colors duration-150 ${isFullyUnmarked ? "bg-rose-50 hover:bg-rose-100" : "hover:bg-gray-50"}`}>
                           <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">{item.class_name}</td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-700 whitespace-nowrap">{item.attendance_time}</td>
                           <td className="px-4 py-3 text-sm font-semibold text-gray-700 whitespace-nowrap">{totalStudents}</td>

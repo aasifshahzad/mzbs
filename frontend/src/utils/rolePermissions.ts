@@ -44,7 +44,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
   ],
   TEACHER: ["attendance", "students", "dashboard"],
   ACCOUNTANT: ["expenses", "fees", "income", "dashboard", "salary"],
-  FEE_MANAGER: ["expenses", "fees", "income", "dashboard", "students"],
+  FEE_MANAGER: ["fees", "dashboard", "students"],
   USER: ["dashboard"], // Students can access own attendance & fees through filtered endpoints
 };
 

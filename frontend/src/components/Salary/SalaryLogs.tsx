@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Header } from "@/components/dashboard/Header";
 import { toast } from "sonner";
-import { Search, Printer, Eye, Edit, Trash2, RefreshCw } from "lucide-react";
+import { Search, Printer, Eye, Edit, Trash2, RefreshCw, ChevronFirst, ChevronLast } from "lucide-react";
 import { SalaryAPI, SalaryPaymentResponse, AllowanceResponse, DeductionResponse, SalaryLedgerResponse } from "@/api/Salary/SalaryAPI";
 import { useRole } from "@/context/RoleContext";
 
@@ -529,8 +529,21 @@ const SalaryLogs = () => {
                     type="button"
                     variant="outline"
                     size="sm"
+                    onClick={() => handlePageChange(1)}
+                    disabled={currentPage === 1 || isLoading}
+                    className="px-2 sm:px-3"
+                    aria-label="First page"
+                  >
+                    <ChevronFirst className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">First</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1 || isLoading}
+                    className="px-2 sm:px-3"
                   >
                     Previous
                   </Button>
@@ -540,8 +553,21 @@ const SalaryLogs = () => {
                     size="sm"
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages || isLoading}
+                    className="px-2 sm:px-3"
                   >
                     Next
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(totalPages)}
+                    disabled={currentPage === totalPages || isLoading}
+                    className="px-2 sm:px-3"
+                    aria-label="Last page"
+                  >
+                    <span className="hidden sm:inline mr-1">Last</span>
+                    <ChevronLast className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

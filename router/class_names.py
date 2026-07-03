@@ -8,7 +8,7 @@ from db import get_session
 from utils.cache import cache_get, cache_set, cache_invalidate
 from schemas.class_names_model import ClassNames, ClassNamesCreate, ClassNamesResponse
 from schemas.attendance_model import Attendance
-from user.user_crud import require_admin, require_admin_teacher_principal, require_admin_teacher_principal_accountant
+from user.user_crud import require_admin, require_admin_teacher_principal, require_admin_teacher_principal_accountant, require_admin_accountant_fee_manager
 from user.user_models import User
 
 classnames_router = APIRouter(
@@ -56,7 +56,7 @@ def create_classnames(user: Annotated[User, Depends(require_admin())],classnames
 
 @classnames_router.get("/class-names-all/", response_model=List[ClassNamesResponse])
 def read_classnames(
-    current_user: Annotated[User, Depends(require_admin_teacher_principal_accountant())],
+    current_user: Annotated[User, Depends(require_admin_accountant_fee_manager())],
     session: Session = Depends(get_session)
 ):
     cached = cache_get("class_names")
