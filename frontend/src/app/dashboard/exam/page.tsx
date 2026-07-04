@@ -1,4 +1,6 @@
 import React from "react";
+import Link from "next/link";
+import { BookOpenCheck } from "lucide-react";
 
 export default function ExamPage() {
   return (
@@ -12,38 +14,28 @@ export default function ExamPage() {
             Exam
           </h1>
           <p className="max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-            This page is now available for administrators, principals, chief principals, and teachers from the dashboard sidebar.
+            Use the exam workspace to enter marks for students and manage academic records from one place.
           </p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-neutral-900">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Upcoming Exams
-          </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Track scheduled exams and academic milestones from one place.
+        <Link
+          href="/dashboard/exam/enter_marks"
+          className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-neutral-900"
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-primary/10 p-2 text-primary">
+              <BookOpenCheck className="h-5 w-5" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Enter Marks
+            </h2>
+          </div>
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+            Select a class, teacher, subject, and exam type to enter student marks.
           </p>
-        </div>
-
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-neutral-900">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Results Overview
-          </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Review exam performance and share summaries with the relevant staff.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-neutral-900">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Attendance & Reports
-          </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Keep attendance, reporting, and exam records aligned with the dashboard.
-          </p>
-        </div>
+        </Link>
       </div>
     </div>
   );

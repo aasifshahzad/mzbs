@@ -98,6 +98,15 @@ const menuList: MenuItem[] = [
     name: "Exam",
     icon: BookOpen,
     path: "/dashboard/exam",
+    hasSubmenu: true,
+    submenu: [
+      {
+        id: 361,
+        name: "Enter Marks",
+        icon: GoDotFill,
+        path: "/dashboard/exam/enter_marks",
+      },
+    ],
   },
   {
     id: 10,
