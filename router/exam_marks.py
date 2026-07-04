@@ -17,6 +17,12 @@ from schemas.exam_marks_model import (
 from schemas.class_names_model import ClassNames
 from schemas.teacher_names_model import TeacherNames
 from schemas.students_model import Students
+from schemas.view_marks_model import (
+    ViewMarksResponse,
+    StudentMarksViewRow,
+    StudentMarkByDate,
+    enrich_student_mark_rows,
+)
 from user.user_crud import require_admin_teacher_principal
 from user.user_models import User
 
@@ -143,6 +149,77 @@ def read_exam_marks_by_filters(
 
     rows = session.exec(query.order_by(ExamMark.exam_date.desc(), ExamMark.created_at.desc())).all()
     return [ExamMarkResponse.model_validate(row) for row in rows]
+
+
+@exam_marks_router.get("/view/", response_model=ViewMarksResponse)
+def view_exam_marks(
+    current_user: Annotated[User, Depends(require_admin_teacher_principal())],
+    session: Session = Depends(get_session),
+    class_name_id: int = Query(...),
+    subject_name: str = Query(...),
+    exam_type: str = Query(...),
+):
+    class_name = session.get(ClassNames, class_name_id)
+    if not class_name:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    rows = session.exec(
+        select(ExamMark)
+        .where(
+            ExamMark.class_name_id == class_name_id,
+            ExamMark.subject_name == subject_name,
+            ExamMark.exam_type == exam_type,
+        )
+        .order_by(ExamMark.exam_date.asc(), ExamMark.student_id.asc())
+    ).all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No exam marks found for the selected filters")
+
+    students_map: dict[int, dict] = {}
+    dates: List[date] = []
+
+    for record in rows:
+        if record.exam_date not in dates:
+            dates.append(record.exam_date)
+
+        student_entry = students_map.setdefault(
+            record.student_id,
+            {"student_id": record.student_id, "student_name": "", "marks": []},
+        )
+        student_entry["marks"].append(
+            StudentMarkByDate(
+                exam_date=record.exam_date,
+                obtained_marks=record.obtained_marks,
+                total_marks=record.total_marks,
+            )
+        )
+
+    students = []
+    for student_id, payload in students_map.items():
+        student = session.get(Students, student_id)
+        student_name = student.student_name if student else f"Student {student_id}"
+        payload["student_name"] = student_name
+        payload["marks"] = [
+            StudentMarkByDate(
+                exam_date=item.exam_date,
+                obtained_marks=item.obtained_marks,
+                total_marks=item.total_marks,
+            )
+            for item in sorted(payload["marks"], key=lambda x: x.exam_date)
+        ]
+        students.append(StudentMarksViewRow(**payload))
+
+    students = enrich_student_mark_rows(students)
+    dates.sort()
+
+    return ViewMarksResponse(
+        class_name_id=class_name_id,
+        subject_name=subject_name,
+        exam_type=exam_type,
+        dates=dates,
+        students=students,
+    )
 
 
 @exam_marks_router.get("/{exam_mark_id}", response_model=ExamMarkResponse)
