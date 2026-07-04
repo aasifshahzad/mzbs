@@ -210,12 +210,18 @@ const menuList: MenuItem[] = [
       },
       {
         id: 6,
+        name: "Class Subjects",
+        icon: GoDotFill,
+        path: "/dashboard/setup/class_subject",
+      },
+      {
+        id: 7,
         name: "Class Timings",
         icon: GoDotFill,
         path: "/dashboard/setup/class_timings",
       },
       {
-        id: 7,
+        id: 8,
         name: "Teacher",
         icon: GoDotFill,
         path: "/dashboard/setup/teacher",

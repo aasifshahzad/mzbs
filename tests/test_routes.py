@@ -144,6 +144,32 @@ def test_create_teacher(admin_token):
     assert response.status_code == 200
     assert response.json()["teacher_name"] == teacher_data["teacher_name"]
 
+
+def test_set_class_subjects(admin_token):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    class_response = client.post(
+        "/class_name/add_class_name/",
+        json={"class_name": "Class 10"},
+        headers=headers,
+    )
+    assert class_response.status_code == 200
+    class_id = class_response.json()["class_name_id"]
+
+    set_response = client.post(
+        "/class_subject/set/",
+        json={"class_name_id": class_id, "subjects": ["Math", "Science"]},
+        headers=headers,
+    )
+    assert set_response.status_code == 200
+    assert set_response.json()["class_name_id"] == class_id
+    assert set_response.json()["subjects"] == ["Math", "Science"]
+
+    list_response = client.get("/class_subject/class-subjects-all/", headers=headers)
+    assert list_response.status_code == 200
+    payload = list_response.json()
+    assert isinstance(payload, list)
+    assert any(item["class_name_id"] == class_id and item["subject_name"] == "Math" for item in payload)
+
 # Test Attendance Value Routes
 def test_create_attendance_value(admin_token):
     headers = {"Authorization": f"Bearer {admin_token}"}

@@ -19,6 +19,7 @@ from router.attendance_value import attendancevalue_router
 from router.attendance_time import attendance_time_router
 from router.teacher_names import teachernames_router
 from router.class_names import classnames_router
+from router.class_subjects import class_subjects_router
 from router.students import students_router
 from router.deleted_students import deleted_students_router
 from router.mark_attendance import mark_attendance_router
@@ -138,6 +139,7 @@ app.include_router(attendancevalue_router)
 app.include_router(attendance_time_router)
 app.include_router(teachernames_router)
 app.include_router(classnames_router)
+app.include_router(class_subjects_router)
 app.include_router(dashboard_router, tags=["Dashboard"])
 app.include_router(expense_router)
 app.include_router(fee_router)
