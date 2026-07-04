@@ -7,11 +7,13 @@ from pydantic import field_validator
 
 class UserRole(str, enum.Enum):
     ADMIN = "ADMIN"
+    CHIEF_PRINCIPAL = "CHIEF_PRINCIPAL"
+    PRINCIPAL = "PRINCIPAL"
     TEACHER = "TEACHER"
-    USER = "USER"
+    STAFF = "STAFF"
+    STUDENT = "STUDENT"
     ACCOUNTANT = "ACCOUNTANT"
     FEE_MANAGER = "FEE_MANAGER"
-    PRINCIPAL = "PRINCIPAL"
 
 class Token(SQLModel):
     access_token: str
@@ -42,19 +44,19 @@ class UserUpdate(SQLModel):
     role: Optional[UserRole] = None
 
 class AdminUserUpdate(SQLModel):
-    role: UserRole = Field(description="Must be one of: ADMIN, TEACHER, USER")
+    role: UserRole = Field(description=f"Must be one of: {', '.join(r.value for r in UserRole)}")
 
 class User(UserBase, table=True):
     username: str = Field(unique=True, nullable=False)
     email: str = Field(index=True, unique=True, nullable=False)
     password: str = Field(nullable=False)
-    role: UserRole = Field(default=UserRole.USER)
+    role: UserRole = Field(default=UserRole.STUDENT)
 
 class UserCreate(SQLModel):
     username: str
     email: str
     password: str
-    role: UserRole = UserRole.USER
+    role: UserRole = UserRole.STUDENT
 
     @field_validator('username')
     @classmethod

@@ -396,16 +396,16 @@ def require_admin():
     return require_roles([UserRole.ADMIN])
 
 def require_admin_principal():
-    """ADMIN or PRINCIPAL can access"""
-    return require_roles([UserRole.ADMIN, UserRole.PRINCIPAL])
+    """ADMIN or PRINCIPAL/CHIEF_PRINCIPAL can access"""
+    return require_roles([UserRole.ADMIN, UserRole.CHIEF_PRINCIPAL, UserRole.PRINCIPAL])
 
 def require_admin_teacher_principal():
-    """ADMIN, TEACHER, or PRINCIPAL can access"""
-    return require_roles([UserRole.ADMIN, UserRole.TEACHER, UserRole.PRINCIPAL])
+    """ADMIN, TEACHER, STAFF, or PRINCIPAL/CHIEF_PRINCIPAL can access"""
+    return require_roles([UserRole.ADMIN, UserRole.CHIEF_PRINCIPAL, UserRole.PRINCIPAL, UserRole.TEACHER, UserRole.STAFF])
 
 def require_admin_teacher_principal_accountant():
-    """ADMIN, TEACHER, PRINCIPAL, or ACCOUNTANT can access"""
-    return require_roles([UserRole.ADMIN, UserRole.TEACHER, UserRole.PRINCIPAL, UserRole.ACCOUNTANT])
+    """ADMIN, TEACHER, STAFF, PRINCIPAL/CHIEF_PRINCIPAL, or ACCOUNTANT can access"""
+    return require_roles([UserRole.ADMIN, UserRole.CHIEF_PRINCIPAL, UserRole.PRINCIPAL, UserRole.TEACHER, UserRole.STAFF, UserRole.ACCOUNTANT])
 
 def require_admin_accountant():
     """ADMIN or ACCOUNTANT can access"""
@@ -416,9 +416,10 @@ def require_admin_fee_manager():
     return require_roles([UserRole.ADMIN, UserRole.FEE_MANAGER])
 
 def require_all_roles():
-    """All roles can access (ADMIN, TEACHER, ACCOUNTANT, FEE_MANAGER, PRINCIPAL, USER)"""
-    return require_roles([UserRole.ADMIN, UserRole.TEACHER, UserRole.ACCOUNTANT, 
-                         UserRole.FEE_MANAGER, UserRole.PRINCIPAL, UserRole.USER])
+    """All roles can access (ADMIN, CHIEF_PRINCIPAL, PRINCIPAL, TEACHER, STAFF, ACCOUNTANT, FEE_MANAGER, STUDENT)"""
+    return require_roles([UserRole.ADMIN, UserRole.CHIEF_PRINCIPAL, UserRole.PRINCIPAL,
+                         UserRole.TEACHER, UserRole.STAFF, UserRole.ACCOUNTANT,
+                         UserRole.FEE_MANAGER, UserRole.STUDENT])
 
 def require_authenticated():
     """Any authenticated user can access"""
@@ -426,13 +427,26 @@ def require_authenticated():
         return current_user
     return checker
 
+
+def require_non_student():
+    """Allow any authenticated user except students."""
+    def checker(current_user: Annotated[User, Depends(get_current_user)]):
+        if current_user.role == UserRole.STUDENT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied for student role",
+            )
+        return current_user
+
+    return checker
+
 # ==================== LEGACY FUNCTIONS (for backward compatibility) ====================
 
 async def check_admin_or_teacher(
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> User:
-    """Legacy function - Check if user is either admin or teacher"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
+    """Legacy function - Check if user is either admin, teacher, or staff"""
+    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER, UserRole.STAFF]:
         raise HTTPException(
             status_code=403,
             detail="Only administrators and teachers can access this resource"
@@ -507,25 +521,21 @@ async def admin_update_user(
 def validate_student_access(current_user: User, requested_student_id: int):
     """
     Validate that a user can access a student's data.
-    - ADMIN, PRINCIPAL, TEACHER can access any student's data
-    - USER (Student) can only access their own data
+    - ADMIN/CHIEF_PRINCIPAL/PRINCIPAL/TEACHER/STAFF can access any student's data
+    - STUDENT can only access their own data
     - Raises 403 if unauthorized
     """
-    # Admin, Principal, and Teachers can access all student data
-    if current_user.role in [UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.TEACHER]:
+    if current_user.role in [UserRole.ADMIN, UserRole.CHIEF_PRINCIPAL, UserRole.PRINCIPAL, UserRole.TEACHER, UserRole.STAFF]:
         return True
-    
-    # USER role (Student) can only access their own data
-    if current_user.role == UserRole.USER:
-        # Assuming user.id represents the student_id for USER role users
+
+    if current_user.role == UserRole.STUDENT:
         if current_user.id != requested_student_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only access your own student records"
             )
         return True
-    
-    # Other roles (ACCOUNTANT, FEE_MANAGER) cannot access student data directly
+
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Your role does not have permission to access student data"
@@ -534,18 +544,18 @@ def validate_student_access(current_user: User, requested_student_id: int):
 def can_view_fee_data(current_user: User):
     """
     Check if a user can view fee data.
-    - ADMIN, PRINCIPAL, ACCOUNTANT, FEE_MANAGER can view all fees
-    - USER (Student) can only view their own fees
+    - ADMIN/CHIEF_PRINCIPAL/PRINCIPAL/ACCOUNTANT/FEE_MANAGER can view all fees
+    - STUDENT can only view their own fees
     """
-    return current_user.role in [UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.ACCOUNTANT, UserRole.FEE_MANAGER, UserRole.USER]
+    return current_user.role in [UserRole.ADMIN, UserRole.CHIEF_PRINCIPAL, UserRole.PRINCIPAL, UserRole.ACCOUNTANT, UserRole.FEE_MANAGER, UserRole.STUDENT]
 
 def can_view_attendance_data(current_user: User):
     """
     Check if a user can view attendance data.
-    - ADMIN, PRINCIPAL, TEACHER can view all attendance
-    - USER (Student) can only view their own attendance
+    - ADMIN/CHIEF_PRINCIPAL/PRINCIPAL/TEACHER/STAFF can view all attendance
+    - STUDENT can only view their own attendance
     """
-    return current_user.role in [UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.TEACHER, UserRole.USER]
+    return current_user.role in [UserRole.ADMIN, UserRole.CHIEF_PRINCIPAL, UserRole.PRINCIPAL, UserRole.TEACHER, UserRole.STAFF, UserRole.STUDENT]
 
 def require_admin_accountant_fee_manager():
     """ADMIN, ACCOUNTANT, or FEE_MANAGER can access"""

@@ -37,7 +37,7 @@ export default function DashboardRouter() {
       return <AccountantDashboard />;
     case "FEE_MANAGER":
       return <FeeManagerDashboard />;
-    case "USER":
+    case "STUDENT":
       return <StudentDashboard />;
     default:
       return (

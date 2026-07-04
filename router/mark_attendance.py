@@ -32,9 +32,9 @@ mark_attendance_router = APIRouter(
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _require_not_user(current_user: User, action: str = "perform this action") -> None:
-    """Raise 403 if the caller is a plain USER."""
-    if current_user.role == UserRole.USER:
-        raise HTTPException(status_code=403, detail=f"Users cannot {action}")
+    """Raise 403 if the caller is a student account."""
+    if current_user.role == UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail=f"Students cannot {action}")
 
 
 def _parse_date(date_str: str, field_name: str = "date") -> datetime:

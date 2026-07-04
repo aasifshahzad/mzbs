@@ -243,12 +243,14 @@ const ManageUser = () => {
                         onChange={(e) => handleRoleChange(user.id, user.username, e.target.value)}
                         className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
                       >
-                        <option value="USER">USER</option>
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="CHIEF_PRINCIPAL">CHIEF_PRINCIPAL</option>
+                        <option value="PRINCIPAL">PRINCIPAL</option>
                         <option value="TEACHER">TEACHER</option>
+                        <option value="STAFF">STAFF</option>
+                        <option value="STUDENT">STUDENT</option>
                         <option value="ACCOUNTANT">ACCOUNTANT</option>
                         <option value="FEE_MANAGER">FEE_MANAGER</option>
-                        <option value="PRINCIPAL">PRINCIPAL</option>
-                        <option value="ADMIN">ADMIN</option>
                       </select>
                     </td>
                     <td className="py-3 px-2 flex gap-2">
@@ -367,12 +369,14 @@ const ManageUser = () => {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
                 >
                   <option value="">Select role</option>
-                  <option value="USER">USER</option>
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="CHIEF_PRINCIPAL">CHIEF_PRINCIPAL</option>
+                  <option value="PRINCIPAL">PRINCIPAL</option>
                   <option value="TEACHER">TEACHER</option>
+                  <option value="STAFF">STAFF</option>
+                  <option value="STUDENT">STUDENT</option>
                   <option value="ACCOUNTANT">ACCOUNTANT</option>
                   <option value="FEE_MANAGER">FEE_MANAGER</option>
-                  <option value="PRINCIPAL">PRINCIPAL</option>
-                  <option value="ADMIN">ADMIN</option>
                 </select>
                 {errorsCreate.role && (
                   <p className="mt-1 text-sm text-red-600 dark:text-red-400">
@@ -489,12 +493,14 @@ const ManageUser = () => {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
                 >
                   <option value="">Select role</option>
-                  <option value="USER">USER</option>
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="CHIEF_PRINCIPAL">CHIEF_PRINCIPAL</option>
+                  <option value="PRINCIPAL">PRINCIPAL</option>
                   <option value="TEACHER">TEACHER</option>
+                  <option value="STAFF">STAFF</option>
+                  <option value="STUDENT">STUDENT</option>
                   <option value="ACCOUNTANT">ACCOUNTANT</option>
                   <option value="FEE_MANAGER">FEE_MANAGER</option>
-                  <option value="PRINCIPAL">PRINCIPAL</option>
-                  <option value="ADMIN">ADMIN</option>
                 </select>
                 {errorsEdit.role && (
                   <p className="mt-1 text-sm text-red-600 dark:text-red-400">

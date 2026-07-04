@@ -5,8 +5,13 @@ import enum
 
 class UserRole(str, enum.Enum):
     ADMIN = "ADMIN"
+    CHIEF_PRINCIPAL = "CHIEF_PRINCIPAL"
+    PRINCIPAL = "PRINCIPAL"
     TEACHER = "TEACHER"
-    USER = "USER"
+    STAFF = "STAFF"
+    STUDENT = "STUDENT"
+    ACCOUNTANT = "ACCOUNTANT"
+    FEE_MANAGER = "FEE_MANAGER"
 
 class Token(SQLModel):
     access_token: str
@@ -22,7 +27,7 @@ class UserBase(SQLModel):
     username: str = Field(nullable=False)
     email: str = Field(index=True, unique=True, nullable=False)
     password: str = Field(nullable=False)
-    role: UserRole = Field(default=UserRole.USER)
+    role: UserRole = Field(default=UserRole.STUDENT)
 
 class UserLogin(SQLModel):
     username: str
@@ -37,13 +42,13 @@ class UserUpdate(SQLModel):
     email: Optional[str] = None
 
 class AdminUserUpdate(SQLModel):
-    role: UserRole = Field(description="Must be one of: ADMIN, TEACHER, USER")
+    role: UserRole = Field(description=f"Must be one of: {', '.join(r.value for r in UserRole)}")
 
 class UserCreate(SQLModel):
     username: str
     email: str
     password: str
-    role: UserRole = UserRole.USER
+    role: UserRole = UserRole.STUDENT
 
 class UserResponse(SQLModel):
     username: str

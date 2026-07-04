@@ -249,7 +249,7 @@ def all_students(
     page: int = Query(10, ge=1, le=50, description="Page number"),
     page_size: int = Query(10, ge=1, le=50, description="Records per page"),
 ):
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.STUDENT:
         raise HTTPException(
             status_code=403,
             detail="Only teachers and administrators can view student records"
@@ -275,7 +275,7 @@ def get_students_by_class(
     class_name: str, 
     session: Annotated[Session, Depends(get_session)]
 ):
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.STUDENT:
         raise HTTPException(
             status_code=403,
             detail="Only teachers and administrators can view student records"
@@ -298,7 +298,7 @@ def get_students_by_class_id(
 ):
     try:
         # Check user authorization
-        if current_user.role == UserRole.USER:
+        if current_user.role == UserRole.STUDENT:
             raise HTTPException(
                 status_code=403,
                 detail="Only teachers and administrators can view student records"
@@ -350,7 +350,7 @@ def get_student_by_gender(
     gender: str, 
     session: Annotated[Session, Depends(get_session)]
 ):
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.STUDENT:
         raise HTTPException(
             status_code=403,
             detail="Only teachers and administrators can view student records"
@@ -371,7 +371,7 @@ def get_student_by_city(
     city: str, 
     session: Annotated[Session, Depends(get_session)]
 ):
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.STUDENT:
         raise HTTPException(
             status_code=403,
             detail="Only teachers and administrators can view student records"
@@ -394,7 +394,7 @@ def filter_students(
     gender: Optional[str] = Query(None, description="Filter by gender"),
     city: Optional[str] = Query(None, description="Filter by city"),
 ):
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.STUDENT:
         raise HTTPException(
             status_code=403,
             detail="Only teachers and administrators can view student records"

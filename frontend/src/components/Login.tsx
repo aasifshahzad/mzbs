@@ -17,7 +17,7 @@ type FormData = {
 interface UserResponse {
   username: string
   email: string
-  role: "ADMIN" | "PRINCIPAL" | "TEACHER" | "ACCOUNTANT" | "FEE_MANAGER" | "USER"
+  role: "ADMIN" | "CHIEF_PRINCIPAL" | "PRINCIPAL" | "TEACHER" | "STAFF" | "ACCOUNTANT" | "FEE_MANAGER" | "STUDENT"
   id: number
 }
 

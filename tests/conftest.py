@@ -63,7 +63,7 @@ def setup_db():
             username="user1",
             email="user1@example.com",
             hashed_password="userpass123",  # Ensure this matches your hashing logic
-            role=UserRole.USER
+            role=UserRole.STUDENT
         )
         session.add_all([admin_user, teacher_user, regular_user])
         session.commit()

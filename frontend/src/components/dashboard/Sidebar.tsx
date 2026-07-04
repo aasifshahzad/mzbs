@@ -15,6 +15,7 @@ import {
   LogOut,
   ChevronDown,
   Banknote,
+  BookOpen,
 } from "lucide-react";
 import { RiCashLine } from "react-icons/ri";
 import { BsCashCoin } from "react-icons/bs";
@@ -91,6 +92,12 @@ const menuList: MenuItem[] = [
         path: "/dashboard/attendance/attendance_status_summary",
       },
     ],
+  },
+  {
+    id: 36,
+    name: "Exam",
+    icon: BookOpen,
+    path: "/dashboard/exam",
   },
   {
     id: 10,
@@ -246,6 +253,7 @@ const getMenuItemSection = (path: string): string => {
   if (lowerPath.includes("/income")) return "income";
   if (lowerPath.includes("/expense")) return "expenses";
   if (lowerPath.includes("/setup") || lowerPath.includes("/settings")) return "setup";
+  if (lowerPath.includes("/exam")) return "exam";
   if (lowerPath.includes("/dashboard")) return "dashboard";
   return "dashboard";
 };

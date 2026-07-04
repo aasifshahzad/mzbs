@@ -44,7 +44,7 @@ def test_user_signup():
         "username": "testuser",
         "email": "test@example.com",
         "password": "testpass123",
-        "role": "USER"
+        "role": "STUDENT"
     }
     response = client.post("/auth/signup", json=user_data)
     assert response.status_code == 200

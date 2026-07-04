@@ -1,11 +1,13 @@
 // Role-based access control mapping
 export type UserRole =
   | "ADMIN"
+  | "CHIEF_PRINCIPAL"
   | "PRINCIPAL"
   | "TEACHER"
+  | "STAFF"
   | "ACCOUNTANT"
   | "FEE_MANAGER"
-  | "USER";
+  | "STUDENT";
 
 export type Section =
   | "dashboard"
@@ -18,7 +20,8 @@ export type Section =
   | "income"
   | "attendance_time"
   | "salary"
-  | "setup";
+  | "setup"
+  | "exam";
 
 // Role to accessible sections mapping
 const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
@@ -34,6 +37,15 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "attendance_time",
     "salary",
     "setup",
+    "exam",
+  ],
+  CHIEF_PRINCIPAL: [
+    "dashboard",
+    "attendance",
+    "students",
+    "teachers",
+    "classes",
+    "exam",
   ],
   PRINCIPAL: [
     "dashboard",
@@ -41,11 +53,13 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "students",
     "teachers",
     "classes",
+    "exam",
   ],
-  TEACHER: ["attendance", "students", "dashboard"],
+  TEACHER: ["attendance", "students", "dashboard", "exam"],
+  STAFF: ["attendance", "students", "dashboard"],
   ACCOUNTANT: ["expenses", "fees", "income", "dashboard", "salary"],
   FEE_MANAGER: ["fees", "dashboard", "students"],
-  USER: ["dashboard"], // Students can access own attendance & fees through filtered endpoints
+  STUDENT: ["dashboard"], // Students can access own attendance & fees through filtered endpoints
 };
 
 /**
@@ -99,7 +113,7 @@ export function canAccessRoute(role: string | null, pathname: string): boolean {
  * Validate if a string is a valid role
  */
 export function isValidRole(role: string): boolean {
-  return ["ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "FEE_MANAGER", "USER"].includes(
+  return ["ADMIN", "CHIEF_PRINCIPAL", "PRINCIPAL", "TEACHER", "STAFF", "ACCOUNTANT", "FEE_MANAGER", "STUDENT"].includes(
     role
   );
 }
@@ -112,11 +126,13 @@ export function getRoleDisplayName(role: string | null): string {
   
   const displayNames: Record<UserRole, string> = {
     ADMIN: "Administrator",
+    CHIEF_PRINCIPAL: "Chief Principal",
     PRINCIPAL: "Principal",
     TEACHER: "Teacher",
+    STAFF: "Staff",
     ACCOUNTANT: "Accountant",
     FEE_MANAGER: "Fee Manager",
-    USER: "Student",
+    STUDENT: "Student",
   };
 
   return displayNames[role as UserRole] || role;
@@ -144,8 +160,8 @@ export function canAccessSubmenuItem(role: string | null, submenuPath: string): 
     return role === "ADMIN";
   }
 
-  // TEACHER: can only access Mark Attendance and View Attendance submenu items
-  if (role === "TEACHER") {
+  // TEACHER/STAFF: can only access Mark Attendance and View Attendance submenu items
+  if (role === "TEACHER" || role === "STAFF") {
     return (
       submenuPath.includes("/attendance/mark_attendance") ||
       submenuPath.includes("/attendance/view_attendance") ||
