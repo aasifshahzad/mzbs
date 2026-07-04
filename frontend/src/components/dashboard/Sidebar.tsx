@@ -112,6 +112,12 @@ const menuList: MenuItem[] = [
         icon: GoDotFill,
         path: "/dashboard/exam/view_marks",
       },
+      {
+        id: 363,
+        name: "Edit Marks",
+        icon: GoDotFill,
+        path: "/dashboard/exam/edit_marks",
+      },
     ],
   },
   {

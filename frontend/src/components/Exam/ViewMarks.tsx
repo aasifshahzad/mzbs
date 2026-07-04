@@ -213,9 +213,11 @@ const ViewMarks = () => {
                     </td>
                     {viewData.dates.map((dateValue) => {
                       const match = student.marks.find((item) => item.exam_date === dateValue);
+                      const obtainedMarks = match?.obtained_marks ?? "-";
+                      const totalMarks = match?.total_marks ?? "-";
                       return (
                         <td key={`${student.student_id}-${dateValue}`} className="px-4 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
-                          {match?.obtained_marks ?? "-"}
+                          {match ? `${obtainedMarks} / ${totalMarks}` : "-"}
                         </td>
                       );
                     })}

@@ -4,7 +4,7 @@ import React from "react";
 import { Header } from "@/components/dashboard/Header";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { BookOpen, Users, Eye } from "lucide-react";
+import { BookOpen, Users, Eye, ClipboardList, NotebookPen } from "lucide-react";
 import { ResponsiveH3 } from "@/components/responsive/ResponsiveTypography";
 
 export function TeacherDashboard() {
@@ -55,6 +55,42 @@ export function TeacherDashboard() {
                 >
                   <Eye size={20} />
                   View Attendance
+                </motion.button>
+              </Link>
+
+              {/* Enter Marks Button */}
+              <Link href="/dashboard/exam/enter_marks">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-lg transition text-sm sm:text-base font-medium flex items-center justify-center gap-2"
+                >
+                  <NotebookPen size={20} />
+                  Enter Marks
+                </motion.button>
+              </Link>
+
+              {/* View Marks Button */}
+              <Link href="/dashboard/exam/view_marks">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-lg transition text-sm sm:text-base font-medium flex items-center justify-center gap-2"
+                >
+                  <ClipboardList size={20} />
+                  View Marks
+                </motion.button>
+              </Link>
+
+              {/* Edit Marks Button */}
+              <Link href="/dashboard/exam/edit_marks">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-rose-500 hover:bg-rose-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-lg transition text-sm sm:text-base font-medium flex items-center justify-center gap-2"
+                >
+                  <BookOpen size={20} />
+                  Edit Marks
                 </motion.button>
               </Link>
             </div>

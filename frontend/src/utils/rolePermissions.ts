@@ -160,12 +160,13 @@ export function canAccessSubmenuItem(role: string | null, submenuPath: string): 
     return role === "ADMIN";
   }
 
-  // TEACHER/STAFF: can only access Mark Attendance and View Attendance submenu items
+  // TEACHER/STAFF: can only access Mark Attendance, View Attendance, and the exam submenu items
   if (role === "TEACHER" || role === "STAFF") {
     return (
       submenuPath.includes("/attendance/mark_attendance") ||
       submenuPath.includes("/attendance/view_attendance") ||
-      submenuPath.includes("/students") && !submenuPath.includes("/deleted")
+      submenuPath.includes("/exam") ||
+      (submenuPath.includes("/students") && !submenuPath.includes("/deleted"))
     );
   }
 

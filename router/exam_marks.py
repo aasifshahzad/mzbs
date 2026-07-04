@@ -3,6 +3,7 @@ from datetime import date
 from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from db import get_session
@@ -13,6 +14,7 @@ from schemas.exam_marks_model import (
     ExamMarkUpdate,
     ExamMarksBulkSubmitRequest,
     ExamMarksBulkSubmitResponse,
+    ExamSessionSummary,
 )
 from schemas.class_names_model import ClassNames
 from schemas.teacher_names_model import TeacherNames
@@ -23,7 +25,7 @@ from schemas.view_marks_model import (
     StudentMarkByDate,
     enrich_student_mark_rows,
 )
-from user.user_crud import require_admin_teacher_principal
+from user.user_crud import require_admin, require_admin_principal, require_admin_teacher_principal
 from user.user_models import User
 
 exam_marks_router = APIRouter(
@@ -111,6 +113,162 @@ def submit_exam_marks(
         updated_count=updated_count,
         records=[ExamMarkResponse.model_validate(record) for record in records],
     )
+
+
+@exam_marks_router.get("/history/", response_model=List[ExamSessionSummary])
+def read_exam_history(
+    current_user: Annotated[User, Depends(require_admin_teacher_principal())],
+    session: Session = Depends(get_session),
+    class_name_id: int = Query(...),
+):
+    rows = session.exec(
+        select(ExamMark)
+        .where(ExamMark.class_name_id == class_name_id)
+        .order_by(ExamMark.exam_date.desc(), ExamMark.subject_name.asc(), ExamMark.exam_type.asc())
+    ).all()
+
+    grouped: dict[tuple[date, int, int, str, str], ExamSessionSummary] = {}
+    for record in rows:
+        key = (record.exam_date, record.class_name_id, record.teacher_name_id, record.subject_name, record.exam_type)
+        if key not in grouped:
+            teacher = session.get(TeacherNames, record.teacher_name_id)
+            grouped[key] = ExamSessionSummary(
+                exam_date=record.exam_date,
+                class_name_id=record.class_name_id,
+                teacher_name_id=record.teacher_name_id,
+                subject_name=record.subject_name,
+                exam_type=record.exam_type,
+                total_marks=record.total_marks,
+                student_count=0,
+                teacher_name=teacher.teacher_name if teacher else None,
+            )
+        grouped[key].student_count += 1
+
+    return sorted(grouped.values(), key=lambda item: (item.exam_date, item.subject_name, item.exam_type), reverse=True)
+
+
+@exam_marks_router.get("/session/", response_model=List[ExamMarkResponse])
+def read_exam_session(
+    current_user: Annotated[User, Depends(require_admin_teacher_principal())],
+    session: Session = Depends(get_session),
+    exam_date: date = Query(...),
+    class_name_id: int = Query(...),
+    teacher_name_id: int = Query(...),
+    subject_name: str = Query(...),
+    exam_type: str = Query(...),
+):
+    rows = session.exec(
+        select(ExamMark)
+        .where(
+            ExamMark.exam_date == exam_date,
+            ExamMark.class_name_id == class_name_id,
+            ExamMark.teacher_name_id == teacher_name_id,
+            ExamMark.subject_name == subject_name,
+            ExamMark.exam_type == exam_type,
+        )
+        .order_by(ExamMark.student_id.asc())
+    ).all()
+    return [ExamMarkResponse.model_validate(row) for row in rows]
+
+
+@exam_marks_router.post("/update_session/", response_model=ExamMarksBulkSubmitResponse)
+def update_exam_session(
+    user: Annotated[User, Depends(require_admin_teacher_principal())],
+    payload: ExamMarksBulkSubmitRequest,
+    session: Session = Depends(get_session),
+):
+    class_name = session.get(ClassNames, payload.class_name_id)
+    if not class_name:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    teacher = session.get(TeacherNames, payload.teacher_name_id)
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    if not payload.marks:
+        raise HTTPException(status_code=400, detail="At least one student mark is required")
+
+    unique_marks: dict[int, ExamMark] = {}
+    for entry in payload.marks:
+        unique_marks[entry.student_id] = entry
+
+    try:
+        session.exec(
+            delete(ExamMark).where(
+                ExamMark.exam_date == payload.exam_date,
+                ExamMark.class_name_id == payload.class_name_id,
+                ExamMark.teacher_name_id == payload.teacher_name_id,
+                ExamMark.subject_name == payload.subject_name,
+                ExamMark.exam_type == payload.exam_type,
+            )
+        )
+
+        created_count = 0
+        records: List[ExamMark] = []
+
+        for entry in unique_marks.values():
+            new_record = ExamMark(
+                exam_date=payload.exam_date,
+                class_name_id=payload.class_name_id,
+                teacher_name_id=payload.teacher_name_id,
+                subject_name=payload.subject_name,
+                exam_type=payload.exam_type,
+                total_marks=payload.total_marks,
+                student_id=entry.student_id,
+                obtained_marks=entry.obtained_marks,
+            )
+            session.add(new_record)
+            created_count += 1
+            records.append(new_record)
+
+        session.commit()
+        for record in records:
+            session.refresh(record)
+    except IntegrityError as exc:
+        session.rollback()
+        logger.error(f"Integrity error: {exc}")
+        raise HTTPException(status_code=400, detail="Unable to update exam marks")
+    except Exception as exc:
+        session.rollback()
+        logger.error(f"Unexpected error: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    return ExamMarksBulkSubmitResponse(
+        message="Exam marks updated successfully",
+        created_count=created_count,
+        updated_count=0,
+        records=[ExamMarkResponse.model_validate(record) for record in records],
+    )
+
+
+@exam_marks_router.delete("/session/", response_model=dict)
+def delete_exam_session(
+    user: Annotated[User, Depends(require_admin_principal())],
+    session: Session = Depends(get_session),
+    exam_date: date = Query(...),
+    class_name_id: int = Query(...),
+    teacher_name_id: int = Query(...),
+    subject_name: str = Query(...),
+    exam_type: str = Query(...),
+):
+    rows = session.exec(
+        select(ExamMark).where(
+            ExamMark.exam_date == exam_date,
+            ExamMark.class_name_id == class_name_id,
+            ExamMark.teacher_name_id == teacher_name_id,
+            ExamMark.subject_name == subject_name,
+            ExamMark.exam_type == exam_type,
+        )
+    ).all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="Exam session not found")
+
+    for row in rows:
+        session.delete(row)
+
+    session.commit()
+    return {"message": "Exam session deleted successfully"}
 
 
 @exam_marks_router.get("/all/", response_model=List[ExamMarkResponse])

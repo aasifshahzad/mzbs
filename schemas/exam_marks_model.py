@@ -68,6 +68,17 @@ class ExamMarkEntry(SQLModel):
     obtained_marks: Optional[float] = None
 
 
+class ExamSessionSummary(SQLModel):
+    exam_date: date
+    class_name_id: int
+    teacher_name_id: int
+    subject_name: str
+    exam_type: str
+    total_marks: int
+    student_count: int
+    teacher_name: Optional[str] = None
+
+
 class ExamMarksBulkSubmitRequest(SQLModel):
     exam_date: date
     class_name_id: int

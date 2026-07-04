@@ -53,6 +53,23 @@ export default function ExamPage() {
             Review class-wise results by subject and exam type across the dates that were recorded.
           </p>
         </Link>
+
+        <Link
+          href="/dashboard/exam/edit_marks"
+          className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-neutral-900"
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-primary/10 p-2 text-primary">
+              <BookOpenCheck className="h-5 w-5" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Edit Marks
+            </h2>
+          </div>
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+            Load a class’s previous exams and view, edit, or delete recorded results based on your role.
+          </p>
+        </Link>
       </div>
     </div>
   );
