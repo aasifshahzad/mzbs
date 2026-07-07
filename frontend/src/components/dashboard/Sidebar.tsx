@@ -60,6 +60,12 @@ const menuList: MenuItem[] = [
       },
       {
         id: 22,
+        name: "Student Profile",
+        icon: GoDotFill,
+        path: "/dashboard/students/profile",
+      },
+      {
+        id: 23,
         name: "Deleted Students",
         icon: GoDotFill,
         path: "/dashboard/students/deleted",
