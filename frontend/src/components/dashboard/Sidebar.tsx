@@ -271,6 +271,12 @@ const menuList: MenuItem[] = [
         icon: GoDotFill,
         path: "/dashboard/setup/manage_user",
       },
+      {
+        id: 22,
+        name: "Student Password",
+        icon: GoDotFill,
+        path: "/dashboard/setup/reset_student_password",
+      },
     ],
   },
   { id: 5, name: "Logout", icon: LogOut, path: "/login" },

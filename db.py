@@ -4,6 +4,8 @@ from sqlmodel import SQLModel, create_engine, Session, select
 from utils.logging import logger
 import setting
 
+import schemas.student_parent_credentials_model  # noqa: F401
+
 CONN_STRING: str = str(setting.DATABASE_URL)
 
 # Validate DATABASE_URL is configured

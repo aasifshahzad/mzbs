@@ -12,7 +12,10 @@ const axiosInstance: AxiosInstance = axios.create({
 // Request interceptor — attach token from localStorage
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const portalToken = localStorage.getItem('studentPortalToken');
+    const staffToken = localStorage.getItem('authToken');
+    const token = portalToken || staffToken;
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,11 +29,16 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      const token = localStorage.getItem('authToken');
+      const portalToken = localStorage.getItem('studentPortalToken');
+      const staffToken = localStorage.getItem('authToken');
+      const token = portalToken || staffToken;
+
       if (token) {
         localStorage.removeItem('authToken');
-        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login';
+        localStorage.removeItem('studentPortalToken');
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/student-login')) {
+          const redirectPath = portalToken ? '/student-login' : '/login';
+          window.location.href = redirectPath;
         }
       }
     }

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { LoginAPI } from "@/api/Login/Login"
 import { toast } from "sonner"
 import Image from "next/image"
@@ -133,6 +134,11 @@ export default function LoginForm() {
             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Sign In"}
           </button>
         </form>
+        <div className="mt-4 text-center text-sm text-gray-600">
+          <Link href="/student-login" className="font-medium text-indigo-600 hover:text-indigo-500">
+            Student / Parent Login
+          </Link>
+        </div>
       </div>
     </div>
   )

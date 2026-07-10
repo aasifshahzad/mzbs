@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { ChevronFirst, ChevronLast } from 'lucide-react';
 import { ClassNameAPI } from '@/api/Classname/ClassNameAPI';
 import AxiosInstance from '@/api/axiosInterceptorInstance';
 import { StudentProfileAPI } from '@/api/StudentProfile/StudentProfileAPI';
 import { Select } from '@/components/Select';
+import { Button } from '@/components/ui/button';
 
 interface ClassOption {
   class_name_id: number;
@@ -82,6 +84,13 @@ export default function StudentProfileView() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('personal');
   const [error, setError] = useState<string | null>(null);
+  const [tabPages, setTabPages] = useState<Record<TabKey, number>>({
+    personal: 1,
+    attendance: 1,
+    exams: 1,
+    fees: 1,
+  });
+  const pageSize = 6;
 
   useEffect(() => {
     const loadClasses = async () => {
@@ -159,30 +168,92 @@ export default function StudentProfileView() {
     []
   );
 
+  const renderPagination = (tab: TabKey, totalItems: number, currentPage: number, totalPages: number) => {
+    const safePage = Math.min(Math.max(1, currentPage), Math.max(1, totalPages));
+    if (totalItems <= pageSize) return null;
+
+    return (
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <p className="text-sm text-gray-600">
+          Page {safePage} of {totalPages}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setTabPages((prev) => ({ ...prev, [tab]: 1 }))}
+            disabled={safePage === 1}
+          >
+            <ChevronFirst className="mr-1 h-4 w-4" />
+            First
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setTabPages((prev) => ({ ...prev, [tab]: Math.max(1, safePage - 1) }))}
+            disabled={safePage === 1}
+          >
+            Previous
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setTabPages((prev) => ({ ...prev, [tab]: Math.min(totalPages, safePage + 1) }))}
+            disabled={safePage === totalPages}
+          >
+            Next
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setTabPages((prev) => ({ ...prev, [tab]: totalPages }))}
+            disabled={safePage === totalPages}
+          >
+            Last
+            <ChevronLast className="ml-1 h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   const renderPersonal = () => {
     if (!profile?.student) return null;
     const student = profile.student;
+    const fields = [
+      ['Student Name', student.student_name],
+      ['Class', student.class_name],
+      ['Gender', student.student_gender],
+      ['Age', student.student_age],
+      ['Education', student.student_education],
+      ['Date of Birth', formatDate(student.student_date_of_birth)],
+      ['City', student.student_city],
+      ['Address', student.student_address],
+      ['Father Name', student.father_name],
+      ['Father Occupation', student.father_occupation],
+      ['Father CNIC', student.father_cnic],
+      ['Father Contact', student.father_contact],
+    ];
+    const totalPages = Math.max(1, Math.ceil(fields.length / pageSize));
+    const currentPage = Math.min(Math.max(1, tabPages.personal), totalPages);
+    const startIndex = (currentPage - 1) * pageSize;
+    const visibleFields = fields.slice(startIndex, startIndex + pageSize);
+
     return (
-      <div className="grid gap-4 md:grid-cols-2">
-        {[
-          ['Student Name', student.student_name],
-          ['Class', student.class_name],
-          ['Gender', student.student_gender],
-          ['Age', student.student_age],
-          ['Education', student.student_education],
-          ['Date of Birth', formatDate(student.student_date_of_birth)],
-          ['City', student.student_city],
-          ['Address', student.student_address],
-          ['Father Name', student.father_name],
-          ['Father Occupation', student.father_occupation],
-          ['Father CNIC', student.father_cnic],
-          ['Father Contact', student.father_contact],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-sm font-semibold text-gray-600">{label}</p>
-            <p className="mt-1 text-sm text-gray-900">{value || 'N/A'}</p>
-          </div>
-        ))}
+      <div>
+        {renderPagination('personal', fields.length, currentPage, totalPages)}
+        <div className="grid gap-4 md:grid-cols-2">
+          {visibleFields.map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <p className="text-sm font-semibold text-gray-600">{label}</p>
+              <p className="mt-1 text-sm text-gray-900">{value || 'N/A'}</p>
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
@@ -192,26 +263,34 @@ export default function StudentProfileView() {
       return <p className="text-sm text-gray-500">No attendance records found.</p>;
     }
 
+    const totalPages = Math.max(1, Math.ceil(profile.attendance.length / pageSize));
+    const currentPage = Math.min(Math.max(1, tabPages.attendance), totalPages);
+    const startIndex = (currentPage - 1) * pageSize;
+    const visibleAttendance = profile.attendance.slice(startIndex, startIndex + pageSize);
+
     return (
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              <th className="px-3 py-2">Date</th>
-              <th className="px-3 py-2">Time</th>
-              <th className="px-3 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profile.attendance.map((item) => (
-              <tr key={item.attendance_id} className="border-t border-gray-200">
-                <td className="px-3 py-2">{formatDate(item.attendance_date)}</td>
-                <td className="px-3 py-2">{item.attendance_time || 'N/A'}</td>
-                <td className="px-3 py-2">{item.attendance_value || 'N/A'}</td>
+      <div>
+        {renderPagination('attendance', profile.attendance.length, currentPage, totalPages)}
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left">
+              <tr>
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Time</th>
+                <th className="px-3 py-2">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visibleAttendance.map((item) => (
+                <tr key={item.attendance_id} className="border-t border-gray-200">
+                  <td className="px-3 py-2">{formatDate(item.attendance_date)}</td>
+                  <td className="px-3 py-2">{item.attendance_time || 'N/A'}</td>
+                  <td className="px-3 py-2">{item.attendance_value || 'N/A'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
@@ -221,28 +300,36 @@ export default function StudentProfileView() {
       return <p className="text-sm text-gray-500">No exam records found.</p>;
     }
 
+    const totalPages = Math.max(1, Math.ceil(profile.exams.length / pageSize));
+    const currentPage = Math.min(Math.max(1, tabPages.exams), totalPages);
+    const startIndex = (currentPage - 1) * pageSize;
+    const visibleExams = profile.exams.slice(startIndex, startIndex + pageSize);
+
     return (
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              <th className="px-3 py-2">Date</th>
-              <th className="px-3 py-2">Subject</th>
-              <th className="px-3 py-2">Exam Type</th>
-              <th className="px-3 py-2">Marks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profile.exams.map((item) => (
-              <tr key={item.exam_id} className="border-t border-gray-200">
-                <td className="px-3 py-2">{formatDate(item.exam_date)}</td>
-                <td className="px-3 py-2">{item.subject_name}</td>
-                <td className="px-3 py-2">{item.exam_type}</td>
-                <td className="px-3 py-2">{item.obtained_marks}/{item.total_marks}</td>
+      <div>
+        {renderPagination('exams', profile.exams.length, currentPage, totalPages)}
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left">
+              <tr>
+                <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Subject</th>
+                <th className="px-3 py-2">Exam Type</th>
+                <th className="px-3 py-2">Marks</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visibleExams.map((item) => (
+                <tr key={item.exam_id} className="border-t border-gray-200">
+                  <td className="px-3 py-2">{formatDate(item.exam_date)}</td>
+                  <td className="px-3 py-2">{item.subject_name}</td>
+                  <td className="px-3 py-2">{item.exam_type}</td>
+                  <td className="px-3 py-2">{item.obtained_marks}/{item.total_marks}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
@@ -252,28 +339,36 @@ export default function StudentProfileView() {
       return <p className="text-sm text-gray-500">No fee history found.</p>;
     }
 
+    const totalPages = Math.max(1, Math.ceil(profile.fees.length / pageSize));
+    const currentPage = Math.min(Math.max(1, tabPages.fees), totalPages);
+    const startIndex = (currentPage - 1) * pageSize;
+    const visibleFees = profile.fees.slice(startIndex, startIndex + pageSize);
+
     return (
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              <th className="px-3 py-2">Month</th>
-              <th className="px-3 py-2">Year</th>
-              <th className="px-3 py-2">Amount</th>
-              <th className="px-3 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profile.fees.map((item) => (
-              <tr key={item.fee_id} className="border-t border-gray-200">
-                <td className="px-3 py-2">{item.fee_month}</td>
-                <td className="px-3 py-2">{item.fee_year}</td>
-                <td className="px-3 py-2">{formatCurrency(item.fee_amount)}</td>
-                <td className="px-3 py-2">{item.fee_status}</td>
+      <div>
+        {renderPagination('fees', profile.fees.length, currentPage, totalPages)}
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left">
+              <tr>
+                <th className="px-3 py-2">Month</th>
+                <th className="px-3 py-2">Year</th>
+                <th className="px-3 py-2">Amount</th>
+                <th className="px-3 py-2">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visibleFees.map((item) => (
+                <tr key={item.fee_id} className="border-t border-gray-200">
+                  <td className="px-3 py-2">{item.fee_month}</td>
+                  <td className="px-3 py-2">{item.fee_year}</td>
+                  <td className="px-3 py-2">{formatCurrency(item.fee_amount)}</td>
+                  <td className="px-3 py-2">{item.fee_status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
