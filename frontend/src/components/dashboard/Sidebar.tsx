@@ -148,6 +148,27 @@ const menuList: MenuItem[] = [
     ],
   },
   {
+    id: 37,
+    name: "Staff",
+    icon: UserCog2,
+    path: "/dashboard/staff",
+    hasSubmenu: true,
+    submenu: [
+      {
+        id: 371,
+        name: "View Staff",
+        icon: GoDotFill,
+        path: "/dashboard/staff/view_staff",
+      },
+      {
+        id: 372,
+        name: "Staff Attendance",
+        icon: GoDotFill,
+        path: "/dashboard/staff/attendance",
+      },
+    ],
+  },
+  {
     id: 32,
     name: "Salary",
     icon: Banknote,
@@ -293,6 +314,7 @@ const getMenuItemSection = (path: string): string => {
   if (lowerPath.includes("/expense")) return "expenses";
   if (lowerPath.includes("/setup") || lowerPath.includes("/settings")) return "setup";
   if (lowerPath.includes("/exam")) return "exam";
+  if (lowerPath.includes("/staff")) return "staff";
   if (lowerPath.includes("/dashboard")) return "dashboard";
   return "dashboard";
 };

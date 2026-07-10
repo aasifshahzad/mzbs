@@ -6,7 +6,7 @@ const page = () => {
   return (
     <div className="w-full h-screen overflow-y-auto bg-bg-light-secondary dark:bg-bg-dark-primary">
       <div className="pt-2 pl-2 pr-2">
-        <Header value="Teacher" />
+        <Header value="Teacher / Staff" />
       </div>
       <TeacherTable />
     </div>

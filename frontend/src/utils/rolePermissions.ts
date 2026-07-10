@@ -21,7 +21,8 @@ export type Section =
   | "attendance_time"
   | "salary"
   | "setup"
-  | "exam";
+  | "exam"
+  | "staff";
 
 // Role to accessible sections mapping
 const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
@@ -38,6 +39,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "salary",
     "setup",
     "exam",
+    "staff",
   ],
   CHIEF_PRINCIPAL: [
     "dashboard",
@@ -46,6 +48,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "teachers",
     "classes",
     "exam",
+    "staff",
   ],
   PRINCIPAL: [
     "dashboard",
@@ -54,6 +57,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "teachers",
     "classes",
     "exam",
+    "staff",
   ],
   TEACHER: ["attendance", "students", "dashboard", "exam"],
   STAFF: ["attendance", "students", "dashboard"],
