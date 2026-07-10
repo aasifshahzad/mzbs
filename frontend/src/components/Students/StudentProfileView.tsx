@@ -75,6 +75,23 @@ const formatCurrency = (value: number | string) => {
   return Number.isNaN(numeric) ? '0' : numeric.toLocaleString();
 };
 
+const extractArrayData = <T,>(response: unknown): T[] => {
+  const payload = (response as { data?: unknown }).data;
+
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (payload && typeof payload === 'object') {
+    const nestedPayload = (payload as { data?: unknown }).data;
+    if (Array.isArray(nestedPayload)) {
+      return nestedPayload as T[];
+    }
+  }
+
+  return [];
+};
+
 export default function StudentProfileView() {
   const [classOptions, setClassOptions] = useState<{ id: string | number; title: string }[]>([]);
   const [studentOptions, setStudentOptions] = useState<{ id: string | number; title: string }[]>([]);
@@ -96,8 +113,8 @@ export default function StudentProfileView() {
     const loadClasses = async () => {
       try {
         const response = await ClassNameAPI.Get();
-        const payload = Array.isArray(response?.data) ? response.data : response?.data?.data || [];
-        const classes = (payload as ClassOption[]).map((item) => ({
+        const classesData = extractArrayData<ClassOption>(response);
+        const classes = classesData.map((item) => ({
           id: item.class_name,
           title: item.class_name,
         }));
@@ -122,8 +139,8 @@ export default function StudentProfileView() {
         const response = await AxiosInstance.get('/students/by_class_name/', {
           params: { class_name: selectedClass },
         });
-        const payload = Array.isArray(response?.data) ? response.data : response?.data?.data || [];
-        const students = (payload as StudentOption[]).map((item) => ({
+        const studentsData = extractArrayData<StudentOption>(response);
+        const students = studentsData.map((item) => ({
           id: item.student_id,
           title: item.student_name,
         }));

@@ -49,7 +49,7 @@ export default function StaffAttendancePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (role && !["ADMIN", "CHIEF_PRINCIPAL", "PRINCIPAL"].includes(role)) {
+    if (role && !["ADMIN", "CHIEF_PRINCIPAL"].includes(role)) {
       router.replace("/unauthorized");
       return;
     }

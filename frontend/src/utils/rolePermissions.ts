@@ -57,7 +57,6 @@ const ROLE_PERMISSIONS: Record<UserRole, Section[]> = {
     "teachers",
     "classes",
     "exam",
-    "staff",
   ],
   TEACHER: ["attendance", "students", "dashboard", "exam"],
   STAFF: ["attendance", "students", "dashboard"],
