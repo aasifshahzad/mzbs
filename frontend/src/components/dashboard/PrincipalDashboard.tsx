@@ -19,6 +19,7 @@ import {
   Cell,
 } from "recharts";
 import { CalendarDays, RefreshCw } from "lucide-react";
+import { useRole } from "@/context/RoleContext";
 
 // ─────────────────────────────────────────────
 // Types
@@ -184,7 +185,9 @@ const EmptyState = ({ message }: { message: string }) => (
 // ─────────────────────────────────────────────
 
 export function PrincipalDashboard() {
+  const { role } = useRole();
   const today = getTodayString();
+  const dashboardTitle = role === "CHIEF_PRINCIPAL" ? "Chief Principal Dashboard" : "Principal Dashboard";
 
   // Section 1 — Student Attendance Distribution
   const [distDate, setDistDate] = useState(today);
@@ -356,7 +359,7 @@ export function PrincipalDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Header value="Principal Dashboard" />
+      <Header value={dashboardTitle} />
 
       <main className="container mx-auto px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8">

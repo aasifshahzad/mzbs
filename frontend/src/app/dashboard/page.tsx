@@ -29,6 +29,7 @@ export default function DashboardRouter() {
   switch (role) {
     case "ADMIN":
       return <AdminDashboard />;
+    case "CHIEF_PRINCIPAL":
     case "PRINCIPAL":
       return <PrincipalDashboard />;
     case "TEACHER":

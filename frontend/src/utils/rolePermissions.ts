@@ -148,14 +148,16 @@ export function getRoleDisplayName(role: string | null): string {
 export function canAccessSubmenuItem(role: string | null, submenuPath: string): boolean {
   if (!role) return false;
 
-  // PRINCIPAL: can view fees but not add
-  if (role === "PRINCIPAL" && submenuPath.includes("/fees/add_fees")) {
+  const isPrincipalLikeRole = role === "PRINCIPAL" || role === "CHIEF_PRINCIPAL";
+
+  // PRINCIPAL and CHIEF_PRINCIPAL can view fees but not add
+  if (isPrincipalLikeRole && submenuPath.includes("/fees/add_fees")) {
     return false;
   }
 
-  // Deleted Students: only ADMIN and PRINCIPAL can access
+  // Deleted Students: only ADMIN and principal-level roles can access
   if (submenuPath.includes("/students/deleted")) {
-    return role === "ADMIN" || role === "PRINCIPAL";
+    return role === "ADMIN" || isPrincipalLikeRole;
   }
 
   // Manage User: only ADMIN can access
